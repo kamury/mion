@@ -1,0 +1,198 @@
+{% extends 'base.html' %}
+{% from '_helpers.html' import avatar, type_badge %}
+{% block title %}{{ board.name }} — Трекер{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+  <h4 class="mb-0">{{ board.name }} <span class="text-muted fs-6">({{ issue_count }} задач)</span></h4>
+  <div class="d-flex gap-2">
+    <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#sprint-new-modal">+ Спринт</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('boards.edit', board_id=board.id) }}">Настроить доску</a>
+  </div>
+</div>
+
+{% if board.filters %}
+<div class="mb-3 d-flex gap-2 flex-wrap">
+  <span class="text-muted small align-self-center">Быстрые фильтры:</span>
+  {% for qf in board.filters %}
+    {% if active_filter and active_filter.id == qf.id %}
+      <a class="btn btn-primary btn-sm" href="{{ url_for('boards.view', board_id=board.id) }}">{{ qf.name }} ✕</a>
+    {% else %}
+      <a class="btn btn-outline-primary btn-sm" href="{{ url_for('boards.view', board_id=board.id, filter=qf.id) }}">{{ qf.name }}</a>
+    {% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if error %}
+  <div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+<div class="board-scroll">
+  <div class="board-grid" style="--cols: {{ statuses | length }};">
+    <div class="board-header-row">
+      {% for s in statuses %}
+        <div class="board-col-header {{ 'board-col-done' if s.is_done }}">{{ s.name }}</div>
+      {% endfor %}
+    </div>
+
+    {% for lane in lanes %}
+    <div class="lane">
+      {% set lane_total = lane.cells.values() | map('length') | sum %}
+      <div class="lane-header d-flex align-items-center gap-2">
+        {% if lane.sprint %}
+          <strong>🏃 {{ lane.sprint.name }}</strong>
+          <span class="badge rounded-pill text-bg-secondary">{{ lane_total }}</span>
+          <span class="text-muted small">
+            {% if lane.sprint.start_date or lane.sprint.end_date %}
+              {{ lane.sprint.start_date | d }} — {{ lane.sprint.end_date | d }}
+            {% endif %}
+          </span>
+          <button class="btn btn-link btn-sm p-0" data-bs-toggle="modal"
+                  data-bs-target="#sprint-edit-{{ lane.sprint.id }}">изменить</button>
+          <button class="btn btn-link btn-sm p-0 text-danger" data-bs-toggle="modal"
+                  data-bs-target="#sprint-close-{{ lane.sprint.id }}">закрыть</button>
+        {% else %}
+          <strong>📥 Backlog</strong>
+          <span class="badge rounded-pill text-bg-secondary">{{ lane_total }}</span>
+          <span class="text-muted small">задачи вне спринта</span>
+        {% endif %}
+      </div>
+      <div class="lane-cells">
+        {% for s in statuses %}
+        <div class="board-cell"
+             data-status-id="{{ s.id }}"
+             data-sprint-id="{{ lane.sprint.id if lane.sprint else '' }}">
+          {% for issue in lane.cells[s.id] %}
+          <div class="issue-card card" data-issue-id="{{ issue.id }}">
+            <div class="card-body p-2">
+              <div class="d-flex justify-content-between align-items-start">
+                {{ type_badge(issue) }}
+                {% if issue.assignee %}{{ avatar(issue.assignee, 22) }}{% endif %}
+              </div>
+              <a class="small text-decoration-none d-block mt-1"
+                 href="{{ url_for('issues.view', issue_id=issue.id) }}">
+                <span class="text-muted">#{{ issue.id }}</span> {{ issue.title }}
+              </a>
+              {% if issue.sprint and issue.sprint.is_closed %}
+                <span class="badge text-bg-warning mt-1">спринт закрыт: {{ issue.sprint.name }}</span>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Модалка: новый спринт -->
+<div class="modal fade" id="sprint-new-modal" tabindex="-1">
+  <div class="modal-dialog">
+    <form method="post" action="{{ url_for('boards.sprint_new') }}" class="modal-content">
+      <input type="hidden" name="board_id" value="{{ board.id }}">
+      <div class="modal-header"><h5 class="modal-title">Новый спринт</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">Пустой спринт виден только на этой доске.
+          Как только в нём появятся задачи — он появится и на других досках, где эти задачи видны.</p>
+        <div class="mb-3">
+          <label class="form-label">Название *</label>
+          <input name="name" class="form-control" required placeholder="Спринт 1">
+        </div>
+        <div class="row">
+          <div class="col mb-3">
+            <label class="form-label">Начало</label>
+            <input name="start_date" type="date" class="form-control">
+          </div>
+          <div class="col mb-3">
+            <label class="form-label">Конец</label>
+            <input name="end_date" type="date" class="form-control">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+        <button class="btn btn-primary">Создать</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% for sprint in board_sprints %}
+<!-- Модалка: редактирование спринта -->
+<div class="modal fade" id="sprint-edit-{{ sprint.id }}" tabindex="-1">
+  <div class="modal-dialog">
+    <form method="post" action="{{ url_for('boards.sprint_edit', sprint_id=sprint.id) }}" class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">Спринт «{{ sprint.name }}»</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label">Название *</label>
+          <input name="name" class="form-control" required value="{{ sprint.name }}">
+        </div>
+        <div class="row">
+          <div class="col mb-3">
+            <label class="form-label">Начало</label>
+            <input name="start_date" type="date" class="form-control"
+                   value="{{ sprint.start_date.isoformat() if sprint.start_date else '' }}">
+          </div>
+          <div class="col mb-3">
+            <label class="form-label">Конец</label>
+            <input name="end_date" type="date" class="form-control"
+                   value="{{ sprint.end_date.isoformat() if sprint.end_date else '' }}">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+        <button class="btn btn-primary">Сохранить</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Модалка: закрытие спринта -->
+<div class="modal fade" id="sprint-close-{{ sprint.id }}" tabindex="-1">
+  <div class="modal-dialog">
+    <form method="post" action="{{ url_for('boards.sprint_close', sprint_id=sprint.id) }}" class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">Закрыть спринт «{{ sprint.name }}»</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        {% set unfinished = unfinished_by_sprint.get(sprint.id, []) %}
+        {% if unfinished %}
+          <p>В спринте <strong>{{ unfinished | length }}</strong> незакрытых задач
+            (в статусах без флажка «Done» — см. Справочники):</p>
+          <ul class="small">
+            {% for u in unfinished %}
+              <li><a href="{{ url_for('issues.view', issue_id=u.id) }}" target="_blank">#{{ u.id }}</a>
+                {{ u.title | truncate(60) }}
+                <span class="badge text-bg-secondary">{{ u.status.name }}</span></li>
+            {% endfor %}
+          </ul>
+          <label class="form-label">Куда их перенести?</label>
+          <select name="target_sprint_id" class="form-select">
+            <option value="">📥 Backlog (вне спринта)</option>
+            {% for other in all_open_sprints if other.id != sprint.id %}
+              <option value="{{ other.id }}">🏃 {{ other.name }}</option>
+            {% endfor %}
+          </select>
+        {% else %}
+          <p>Все задачи спринта закрыты. Спринт можно закрывать.</p>
+        {% endif %}
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+        <button class="btn btn-danger">Закрыть спринт</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
+<script src="{{ url_for('static', filename='js/board.js') }}"></script>
+{% endblock %}

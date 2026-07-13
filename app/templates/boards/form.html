@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% block title %}{{ board.name if board else 'Новая доска' }} — Трекер{% endblock %}
+{% block content %}
+<h4 class="mb-3">{{ 'Настройка доски «' ~ board.name ~ '»' if board else 'Новая доска' }}</h4>
+
+<div class="row">
+  <div class="col-lg-7">
+    <div class="card shadow-sm mb-3">
+      <div class="card-body">
+        <form method="post">
+          <div class="mb-3">
+            <label class="form-label">Название *</label>
+            <input name="name" class="form-control" required value="{{ board.name if board else '' }}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">SQL-запрос доски *</label>
+            <textarea name="query_sql" class="form-control font-monospace" rows="6"
+                      required placeholder="SELECT id FROM issues WHERE project_id = 1">{{ board.query_sql if board else '' }}</textarea>
+            <div class="form-text">
+              Запрос должен возвращать <code>id</code> задач из таблицы <code>issues</code>.
+              Доступен параметр <code>:current_user_id</code> — id текущего пользователя.
+              Выполняется в read-only режиме.
+            </div>
+          </div>
+          <button class="btn btn-primary">{{ 'Сохранить' if board else 'Создать' }}</button>
+          <a class="btn btn-outline-secondary" href="{{ url_for('boards.index') }}">Отмена</a>
+        </form>
+      </div>
+    </div>
+
+    {% if board %}
+    <div class="card shadow-sm mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Быстрые фильтры</h5>
+        <p class="text-muted small">Кнопки на доске. SQL фильтра тоже возвращает <code>id</code> задач —
+          на доске останется пересечение с запросом доски.</p>
+        <table class="table table-sm align-middle">
+          <tbody>
+            {% for qf in board.filters %}
+            <tr>
+              <td class="fw-bold" style="width: 30%">{{ qf.name }}</td>
+              <td><code class="small">{{ qf.query_sql }}</code></td>
+              <td class="text-end">
+                <form method="post" action="{{ url_for('boards.delete_filter', filter_id=qf.id) }}"
+                      onsubmit="return confirm('Удалить фильтр «{{ qf.name }}»?');">
+                  <button class="btn btn-sm btn-outline-danger">✕</button>
+                </form>
+              </td>
+            </tr>
+            {% else %}
+            <tr><td class="text-muted">Фильтров пока нет</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <form method="post" action="{{ url_for('boards.add_filter', board_id=board.id) }}" class="row g-2">
+          <div class="col-md-4">
+            <input name="name" class="form-control form-control-sm" placeholder="Название (например, Мои задачи)" required>
+          </div>
+          <div class="col-md-6">
+            <input name="query_sql" class="form-control form-control-sm font-monospace"
+                   placeholder="SELECT id FROM issues WHERE assignee_id = :current_user_id" required>
+          </div>
+          <div class="col-md-2">
+            <button class="btn btn-primary btn-sm w-100">Добавить</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card shadow-sm bg-body-tertiary">
+      <div class="card-body small">
+        <h6>Примеры запросов</h6>
+        <p class="mb-1 text-muted">Все задачи проекта:</p>
+        <pre class="mb-2"><code>SELECT id FROM issues WHERE project_id = 1</code></pre>
+        <p class="mb-1 text-muted">Только Task и Bug команды:</p>
+        <pre class="mb-2"><code>SELECT id FROM issues
+WHERE type IN ('task', 'bug') AND team_id = 2</code></pre>
+        <p class="mb-1 text-muted">Мои задачи (быстрый фильтр):</p>
+        <pre class="mb-2"><code>SELECT id FROM issues
+WHERE assignee_id = :current_user_id</code></pre>
+        <p class="mb-1 text-muted">Незакрытые баги:</p>
+        <pre class="mb-0"><code>SELECT i.id FROM issues i
+JOIN statuses s ON s.id = i.status_id
+WHERE i.type = 'bug' AND NOT s.is_done</code></pre>
+        <hr>
+        <p class="mb-1 text-muted">Основные таблицы: <code>issues</code>, <code>users</code>, <code>projects</code>,
+          <code>teams</code>, <code>customers</code>, <code>sprints</code>, <code>statuses</code>.</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

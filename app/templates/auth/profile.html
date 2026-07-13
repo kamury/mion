@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% from '_helpers.html' import avatar %}
+{% block title %}Профиль — Трекер{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-5">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h4 class="card-title mb-3 d-flex align-items-center gap-2">
+          {{ avatar(current_user, 48) }} Профиль
+        </h4>
+        <form method="post" enctype="multipart/form-data">
+          <div class="mb-3">
+            <label class="form-label">Логин</label>
+            <input class="form-control" value="{{ current_user.login }}" disabled>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Почта</label>
+            <input class="form-control" value="{{ current_user.email }}" disabled>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Имя</label>
+            <input name="name" class="form-control" value="{{ current_user.name }}" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Новый аватар</label>
+            <input name="avatar" type="file" accept="image/*" class="form-control">
+          </div>
+          <hr>
+          <p class="text-muted mb-2">Смена пароля (оставь пустым, если не нужно)</p>
+          <div class="row">
+            <div class="col mb-3">
+              <input name="password" type="password" class="form-control" placeholder="Новый пароль">
+            </div>
+            <div class="col mb-3">
+              <input name="password2" type="password" class="form-control" placeholder="Ещё раз">
+            </div>
+          </div>
+          <button class="btn btn-primary">Сохранить</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

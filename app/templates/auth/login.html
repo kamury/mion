@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block title %}Вход — Трекер{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-4">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h4 class="card-title mb-3">Вход</h4>
+        <form method="post">
+          <div class="mb-3">
+            <label class="form-label">Логин или почта</label>
+            <input name="login" class="form-control" required autofocus>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Пароль</label>
+            <input name="password" type="password" class="form-control" required>
+          </div>
+          <div class="mb-3 form-check">
+            <input name="remember" type="checkbox" class="form-check-input" id="remember" checked>
+            <label class="form-check-label" for="remember">Запомнить меня</label>
+          </div>
+          <button class="btn btn-primary w-100">Войти</button>
+        </form>
+        <div class="d-flex justify-content-between mt-3">
+          <a href="{{ url_for('auth.register') }}">Регистрация</a>
+          <a href="{{ url_for('auth.forgot') }}">Забыли пароль?</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

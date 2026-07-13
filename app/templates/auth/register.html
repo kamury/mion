@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}Регистрация — Трекер{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-5">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h4 class="card-title mb-3">Регистрация</h4>
+        <form method="post" enctype="multipart/form-data">
+          <div class="mb-3">
+            <label class="form-label">Логин *</label>
+            <input name="login" class="form-control" required value="{{ request.form.get('login', '') }}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Почта *</label>
+            <input name="email" type="email" class="form-control" required value="{{ request.form.get('email', '') }}">
+            <div class="form-text">Нужна для восстановления пароля.</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Имя (отображается в системе) *</label>
+            <input name="name" class="form-control" required value="{{ request.form.get('name', '') }}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Аватар</label>
+            <input name="avatar" type="file" accept="image/*" class="form-control">
+          </div>
+          <div class="row">
+            <div class="col mb-3">
+              <label class="form-label">Пароль *</label>
+              <input name="password" type="password" class="form-control" required>
+            </div>
+            <div class="col mb-3">
+              <label class="form-label">Ещё раз *</label>
+              <input name="password2" type="password" class="form-control" required>
+            </div>
+          </div>
+          <button class="btn btn-primary w-100">Зарегистрироваться</button>
+        </form>
+        <div class="mt-3 text-center">
+          <a href="{{ url_for('auth.login') }}">Уже есть аккаунт? Войти</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

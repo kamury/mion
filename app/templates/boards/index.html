@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block title %}Доски — Трекер{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0">Доски</h4>
+  <a class="btn btn-success" href="{{ url_for('boards.new') }}">+ Создать доску</a>
+</div>
+
+<div class="card shadow-sm">
+  <table class="table table-hover align-middle mb-0">
+    <thead><tr><th>Название</th><th>Владелец</th><th>Создана</th><th></th></tr></thead>
+    <tbody>
+      {% for board in boards %}
+      <tr>
+        <td><a href="{{ url_for('boards.view', board_id=board.id) }}">{{ board.name }}</a></td>
+        <td>{{ board.owner.name }}</td>
+        <td class="text-muted">{{ board.created_at | dt }}</td>
+        <td class="text-end">
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('boards.edit', board_id=board.id) }}">Настроить</a>
+          <form method="post" action="{{ url_for('boards.delete', board_id=board.id) }}" class="d-inline"
+                onsubmit="return confirm('Удалить доску «{{ board.name }}»?');">
+            <button class="btn btn-sm btn-outline-danger">Удалить</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="text-center text-muted py-4">Досок пока нет — создай первую</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

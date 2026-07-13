@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+{% from '_helpers.html' import avatar, type_badge %}
+{% block title %}Групповое редактирование — Трекер{% endblock %}
+
+{% macro set_select(field, label, items, clearable=True, use_title=False) %}
+<div class="col-md-4 col-lg-3 mb-3">
+  <label class="form-label">{{ label }}</label>
+  <select name="set_{{ field }}" class="form-select form-select-sm">
+    <option value="">— не менять —</option>
+    {% if clearable %}<option value="__clear__">✕ очистить</option>{% endif %}
+    {% for item in items %}
+      <option value="{{ item.id }}">{{ item.title if use_title else item.name }}</option>
+    {% endfor %}
+  </select>
+</div>
+{% endmacro %}
+
+{% block content %}
+<h4 class="mb-3">Групповое редактирование задач</h4>
+
+<form method="post">
+  <div class="card shadow-sm mb-3">
+    <div class="card-body">
+      <label class="form-label">SQL-выборка задач (как на досках: запрос возвращает <code>id</code> из <code>issues</code>)</label>
+      <textarea name="query_sql" class="form-control font-monospace mb-2" rows="4" required
+                placeholder="SELECT id FROM issues WHERE project_id = 1 AND customer_id IS NULL">{{ sql }}</textarea>
+      <div class="form-text mb-2">Доступен параметр <code>:current_user_id</code>.
+        Сначала нажми «Показать выборку» и проверь, что попало в список.</div>
+      <button class="btn btn-outline-primary" name="action" value="preview">Показать выборку</button>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-3">
+    <div class="card-body">
+      <h6 class="card-title">Установить значения для всех выбранных задач</h6>
+      <div class="row">
+        {{ set_select('status_id', 'Статус', statuses, clearable=False) }}
+        {{ set_select('assignee_id', 'Исполнитель', users) }}
+        {{ set_select('reporter_id', 'Автор', users, clearable=False) }}
+        {{ set_select('project_id', 'Проект', projects) }}
+        {{ set_select('team_id', 'Команда', teams) }}
+        {{ set_select('customer_id', 'Заказчик', customers) }}
+        {{ set_select('sprint_id', 'Спринт', sprints) }}
+      </div>
+      <button class="btn btn-danger" name="action" value="apply"
+              onclick="return confirm('Применить изменения ко всем задачам из выборки?');">
+        Применить к выборке</button>
+      <span class="text-muted small ms-2">Каждое изменение попадёт в историю задач.</span>
+    </div>
+  </div>
+</form>
+
+{% if error %}
+  <div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+{% if issues %}
+<div class="card shadow-sm">
+  <div class="card-header">В выборке: {{ issues | length }} задач</div>
+  <table class="table table-hover table-sm align-middle mb-0">
+    <thead><tr><th>#</th><th>Тип</th><th>Название</th><th>Статус</th>
+      <th>Исполнитель</th><th>Проект</th><th>Заказчик</th><th>Спринт</th></tr></thead>
+    <tbody>
+      {% for issue in issues %}
+      <tr>
+        <td><a href="{{ url_for('issues.view', issue_id=issue.id) }}" target="_blank">#{{ issue.id }}</a></td>
+        <td>{{ type_badge(issue) }}</td>
+        <td>{{ issue.title }}</td>
+        <td><span class="badge text-bg-secondary">{{ issue.status.name }}</span></td>
+        <td>{{ issue.assignee.name if issue.assignee else '—' }}</td>
+        <td>{{ issue.project.name if issue.project else '—' }}</td>
+        <td>{{ issue.customer.name if issue.customer else '—' }}</td>
+        <td>{{ issue.sprint.name if issue.sprint else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,15 @@
+{% macro avatar(user, size=28) -%}
+  {%- if user and user.avatar -%}
+    <img src="{{ url_for('files.serve', name=user.avatar) }}" alt="{{ user.name }}"
+         class="rounded-circle object-fit-cover" width="{{ size }}" height="{{ size }}"
+         title="{{ user.name }}">
+  {%- elif user -%}
+    <span class="avatar-initials rounded-circle d-inline-flex align-items-center justify-content-center"
+          style="width: {{ size }}px; height: {{ size }}px; font-size: {{ (size * 0.45) | int }}px;"
+          title="{{ user.name }}">{{ user.name[:1] | upper }}</span>
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro type_badge(issue) -%}
+  <span class="badge type-{{ issue.type }}">{{ issue.type_label }}</span>
+{%- endmacro %}

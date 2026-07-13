@@ -1,0 +1,218 @@
+{% extends 'base.html' %}
+{% from '_helpers.html' import avatar, type_badge %}
+{% block title %}#{{ issue.id }} {{ issue.title }} — Трекер{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+  <div>
+    <h4 class="mb-1">{{ type_badge(issue) }} #{{ issue.id }} — {{ issue.title }}</h4>
+    {% if issue.parent %}
+      <div class="text-muted small">
+        Родитель: {{ type_badge(issue.parent) }}
+        <a href="{{ url_for('issues.view', issue_id=issue.parent.id) }}">#{{ issue.parent.id }} {{ issue.parent.title }}</a>
+      </div>
+    {% endif %}
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-primary btn-sm" href="{{ url_for('issues.edit', issue_id=issue.id) }}">Редактировать</a>
+    <form method="post" action="{{ url_for('issues.delete', issue_id=issue.id) }}"
+          onsubmit="return confirm('Удалить задачу #{{ issue.id }}? Действие необратимо.');">
+      <button class="btn btn-outline-danger btn-sm">Удалить</button>
+    </form>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-lg-8">
+    <ul class="nav nav-tabs" role="tablist">
+      <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-main">Задача</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-history">История ({{ issue.history | length }})</button></li>
+    </ul>
+
+    <div class="tab-content bg-white border border-top-0 rounded-bottom p-3 shadow-sm mb-4">
+      <div class="tab-pane fade show active" id="tab-main">
+        {# ---------- Описание ---------- #}
+        {% if issue.summary %}
+          <div class="rendered-html">{{ issue.summary | safe }}</div>
+        {% else %}
+          <p class="text-muted">Описания нет.</p>
+        {% endif %}
+
+        {% if issue.children %}
+          <hr>
+          <h6>Дочерние задачи</h6>
+          <ul class="list-unstyled mb-0">
+            {% for child in issue.children | sort(attribute='id') %}
+              <li class="mb-1">
+                {{ type_badge(child) }}
+                <a href="{{ url_for('issues.view', issue_id=child.id) }}">#{{ child.id }} {{ child.title }}</a>
+                <span class="badge text-bg-secondary">{{ child.status.name }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+
+        {# ---------- Файлы ---------- #}
+        <hr>
+        <div id="files">
+          <h6>Файлы ({{ issue.attachments | length }})</h6>
+          {% if issue.attachments %}
+          <table class="table table-sm align-middle">
+            <tbody>
+              {% for a in issue.attachments %}
+              <tr>
+                <td><a href="{{ url_for('files.serve', name=a.stored_name) }}" target="_blank">📎 {{ a.original_name }}</a>
+                  {% if a.comment_id %}<span class="text-muted small">(из комментария)</span>{% endif %}</td>
+                <td class="text-nowrap">{{ (a.size / 1024) | round(1) }} КБ</td>
+                <td class="text-nowrap">{{ a.uploaded_by.name }}</td>
+                <td class="text-muted text-nowrap">{{ a.created_at | dt }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% endif %}
+          <form method="post" action="{{ url_for('issues.attach', issue_id=issue.id) }}"
+                enctype="multipart/form-data" class="d-flex gap-2 mb-1">
+            <input name="files" type="file" multiple class="form-control form-control-sm" style="max-width: 350px" required>
+            <button class="btn btn-outline-primary btn-sm text-nowrap">Загрузить</button>
+          </form>
+        </div>
+
+        {# ---------- Комментарии ---------- #}
+        <hr>
+        <div id="comments">
+          <h6>Комментарии ({{ issue.comments | length }})</h6>
+          {% for c in issue.comments %}
+            <div class="d-flex gap-2 mb-3">
+              <div>{{ avatar(c.author, 36) }}</div>
+              <div class="flex-grow-1">
+                <div><strong>{{ c.author.name }}</strong>
+                  <span class="text-muted small">{{ c.created_at | dt }}</span></div>
+                <div class="rendered-html">{{ c.body | safe }}</div>
+                {% if c.attachments %}
+                  <div class="mt-1">
+                    {% for a in c.attachments %}
+                      <a class="badge text-bg-light text-decoration-none border"
+                         href="{{ url_for('files.serve', name=a.stored_name) }}" target="_blank">
+                        📎 {{ a.original_name }}</a>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          {% else %}
+            <p class="text-muted">Комментариев пока нет.</p>
+          {% endfor %}
+
+          <form method="post" action="{{ url_for('issues.comment', issue_id=issue.id) }}"
+                enctype="multipart/form-data" id="comment-form">
+            <textarea name="body" id="comment-input" hidden></textarea>
+            <div id="comment-editor" class="bg-white mb-2"></div>
+            <div class="d-flex gap-2 align-items-center">
+              <input name="files" type="file" multiple class="form-control form-control-sm" style="max-width: 350px">
+              <button class="btn btn-primary btn-sm text-nowrap">Отправить</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      {# ---------- История ---------- #}
+      <div class="tab-pane fade" id="tab-history">
+        <table class="table table-sm align-middle">
+          <thead><tr><th>Когда</th><th>Кто</th><th>Что</th></tr></thead>
+          <tbody>
+            {% for h in issue.history %}
+            <tr>
+              <td class="text-muted text-nowrap">{{ h.created_at | dt }}</td>
+              <td class="text-nowrap">
+                <span class="d-inline-flex align-items-center gap-1">{{ avatar(h.user, 22) }} {{ h.user.name }}</span>
+              </td>
+              <td>
+                {% if h.action == 'created' %}создал(а) задачу
+                {% elif h.action == 'commented' %}добавил(а) комментарий
+                {% elif h.action == 'attached' %}прикрепил(а) файл «{{ h.new_value }}»
+                {% else %}
+                  изменил(а) <strong>{{ h.field }}</strong>:
+                  <span class="text-muted">{{ h.old_value if h.old_value is not none else '—' }}</span>
+                  →
+                  <span>{{ h.new_value if h.new_value is not none else '—' }}</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="3" class="text-muted text-center">Истории нет</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    {# Селект одного поля: меняет значение сразу при выборе #}
+    {% macro field_select(field, options, current_id, empty_label=None) %}
+      <form method="post" action="{{ url_for('issues.set_field', issue_id=issue.id) }}" class="flex-grow-1">
+        <input type="hidden" name="field" value="{{ field }}">
+        <select name="value" class="form-select form-select-sm" onchange="this.form.submit()">
+          {% if empty_label %}<option value="" {{ 'selected' if not current_id }}>{{ empty_label }}</option>{% endif %}
+          {% for o in options %}
+            <option value="{{ o.id }}" {{ 'selected' if o.id == current_id }}>{{ o.name }}</option>
+          {% endfor %}
+        </select>
+      </form>
+    {% endmacro %}
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <dl class="row mb-0 small">
+          <dt class="col-4 mt-2">Статус</dt>
+          <dd class="col-8 mb-1">{{ field_select('status_id', statuses, issue.status_id) }}</dd>
+          <dt class="col-4">Автор</dt>
+          <dd class="col-8 mb-1"><span class="d-inline-flex align-items-center gap-1">{{ avatar(issue.reporter, 22) }} {{ issue.reporter.name }}</span></dd>
+          <dt class="col-4 mt-2">Исполнитель</dt>
+          <dd class="col-8 mb-1">
+            <div class="d-flex gap-1">
+              {{ field_select('assignee_id', users, issue.assignee_id, '—') }}
+              {% if issue.assignee_id != current_user.id %}
+                <form method="post" action="{{ url_for('issues.set_field', issue_id=issue.id) }}">
+                  <input type="hidden" name="field" value="assignee_id">
+                  <button name="value" value="{{ current_user.id }}"
+                          class="btn btn-outline-secondary btn-sm text-nowrap"
+                          title="Назначить на меня">на меня</button>
+                </form>
+              {% endif %}
+            </div>
+          </dd>
+          <dt class="col-4 mt-2">Проект</dt>
+          <dd class="col-8 mb-1">{{ field_select('project_id', projects, issue.project_id, '—') }}</dd>
+          <dt class="col-4 mt-2">Команда</dt>
+          <dd class="col-8 mb-1">{{ field_select('team_id', teams, issue.team_id, '—') }}</dd>
+          <dt class="col-4 mt-2">Заказчик</dt>
+          <dd class="col-8 mb-1">{{ field_select('customer_id', customers, issue.customer_id, '—') }}</dd>
+          <dt class="col-4 mt-2">Спринт</dt>
+          <dd class="col-8 mb-1">
+            <form method="post" action="{{ url_for('issues.set_field', issue_id=issue.id) }}">
+              <input type="hidden" name="field" value="sprint_id">
+              <select name="value" class="form-select form-select-sm" onchange="this.form.submit()">
+                <option value="" {{ 'selected' if not issue.sprint_id }}>Backlog</option>
+                {% if issue.sprint and issue.sprint.is_closed %}
+                  <option value="{{ issue.sprint.id }}" selected>{{ issue.sprint.name }} (закрыт)</option>
+                {% endif %}
+                {% for s in sprints %}
+                  <option value="{{ s.id }}" {{ 'selected' if s.id == issue.sprint_id }}>{{ s.name }}</option>
+                {% endfor %}
+              </select>
+            </form>
+          </dd>
+          <dt class="col-4">Создана</dt><dd class="col-8">{{ issue.created_at | dt }}</dd>
+          <dt class="col-4">Обновлена</dt><dd class="col-8 mb-0">{{ issue.updated_at | dt }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  initEditor('#comment-editor', '#comment-input');
+</script>
+{% endblock %}

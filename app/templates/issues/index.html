@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+{% from '_helpers.html' import avatar, type_badge %}
+{% block title %}Задачи — Трекер{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h4 class="mb-0">Задачи</h4>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('issues.bulk') }}">Групповое редактирование</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('issues.import_excel') }}">Импорт из Excel</a>
+    <a class="btn btn-outline-secondary btn-sm"
+       href="{{ url_for('issues.export', **request.args) }}">Экспорт в Excel</a>
+    <a class="btn btn-success btn-sm" href="{{ url_for('issues.new') }}">+ Создать задачу</a>
+  </div>
+</div>
+
+<form method="get" class="row g-2 mb-3">
+  <div class="col-auto">
+    <select name="type" class="form-select form-select-sm">
+      <option value="">Любой тип</option>
+      {% for value, label in issue_types.items() %}
+        <option value="{{ value }}" {{ 'selected' if args.get('type') == value }}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <select name="status_id" class="form-select form-select-sm">
+      <option value="">Любой статус</option>
+      {% for s in statuses %}
+        <option value="{{ s.id }}" {{ 'selected' if args.get('status_id') == s.id|string }}>{{ s.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <select name="assignee_id" class="form-select form-select-sm">
+      <option value="">Любой исполнитель</option>
+      {% for u in users %}
+        <option value="{{ u.id }}" {{ 'selected' if args.get('assignee_id') == u.id|string }}>{{ u.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <select name="project_id" class="form-select form-select-sm">
+      <option value="">Любой проект</option>
+      {% for p in projects %}
+        <option value="{{ p.id }}" {{ 'selected' if args.get('project_id') == p.id|string }}>{{ p.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <input name="q" class="form-control form-control-sm" placeholder="Поиск по названию"
+           value="{{ args.get('q', '') }}">
+  </div>
+  <div class="col-auto">
+    <button class="btn btn-primary btn-sm">Фильтровать</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('issues.index') }}">Сбросить</a>
+  </div>
+</form>
+
+<div class="card shadow-sm">
+  <table class="table table-hover align-middle mb-0">
+    <thead>
+      <tr>
+        <th>#</th><th>Тип</th><th>Название</th><th>Статус</th>
+        <th>Исполнитель</th><th>Проект</th><th>Спринт</th><th>Обновлена</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for issue in issues %}
+      <tr>
+        <td><a href="{{ url_for('issues.view', issue_id=issue.id) }}">#{{ issue.id }}</a></td>
+        <td>{{ type_badge(issue) }}</td>
+        <td><a class="text-decoration-none" href="{{ url_for('issues.view', issue_id=issue.id) }}">{{ issue.title }}</a></td>
+        <td><span class="badge text-bg-secondary">{{ issue.status.name }}</span></td>
+        <td>
+          {% if issue.assignee %}
+            <span class="d-inline-flex align-items-center gap-1">{{ avatar(issue.assignee, 22) }} {{ issue.assignee.name }}</span>
+          {% else %}<span class="text-muted">—</span>{% endif %}
+        </td>
+        <td>{{ issue.project.name if issue.project else '—' }}</td>
+        <td>{{ issue.sprint.name if issue.sprint else '—' }}</td>
+        <td class="text-muted">{{ issue.updated_at | dt }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="text-center text-muted py-4">Задач пока нет</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

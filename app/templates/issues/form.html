@@ -1,0 +1,152 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Задача #' ~ issue.id if issue else 'Новая задача' }} — Трекер{% endblock %}
+{% block head %}
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+{% endblock %}
+{% block content %}
+{% set f = form_data or {} %}
+{% set cur = {
+  'type': f.get('type', issue.type if issue else 'task'),
+  'parent_id': f.get('parent_id', issue.parent_id if issue else '') or '',
+  'title': f.get('title', issue.title if issue else ''),
+  'summary': f.get('summary', issue.summary if issue else ''),
+  'reporter_id': f.get('reporter_id', issue.reporter_id if issue else current_user.id) or '',
+  'assignee_id': f.get('assignee_id', issue.assignee_id if issue else '') or '',
+  'project_id': f.get('project_id', issue.project_id if issue else '') or '',
+  'team_id': f.get('team_id', issue.team_id if issue else '') or '',
+  'customer_id': f.get('customer_id', issue.customer_id if issue else '') or '',
+  'sprint_id': f.get('sprint_id', issue.sprint_id if issue else '') or '',
+  'status_id': f.get('status_id', issue.status_id if issue else '') or '',
+} %}
+
+<h4 class="mb-3">{{ 'Редактирование задачи #' ~ issue.id if issue else 'Новая задача' }}</h4>
+
+<form method="post" enctype="multipart/form-data" id="issue-form">
+  <div class="row">
+    <div class="col-lg-8">
+      <div class="card shadow-sm mb-3">
+        <div class="card-body">
+          <div class="row mb-3">
+            <div class="col-md-4">
+              <label class="form-label">Тип *</label>
+              <select name="type" id="type-select" class="form-select" {{ 'disabled' if issue and issue.children }}>
+                {% for value, label in issue_types.items() %}
+                  <option value="{{ value }}" {{ 'selected' if cur.type == value }}>{{ label }}</option>
+                {% endfor %}
+              </select>
+              {% if issue and issue.children %}
+                <input type="hidden" name="type" value="{{ issue.type }}">
+                <div class="form-text">Тип нельзя менять: есть дочерние задачи.</div>
+              {% endif %}
+            </div>
+            <div class="col-md-8" id="parent-wrap">
+              <label class="form-label">Родитель</label>
+              <select name="parent_id" id="parent-select" class="form-select"
+                      data-current="{{ cur.parent_id }}"></select>
+              <div class="form-text" id="parent-hint">Поиск по названию или номеру.</div>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Название *</label>
+            <input name="title" class="form-control" required value="{{ cur.title }}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Описание</label>
+            <textarea name="summary" id="summary-input" hidden>{{ cur.summary }}</textarea>
+            <div id="summary-editor" class="bg-white"></div>
+            <div class="form-text">Картинки можно вставлять прямо в текст (кнопка 🖼 или Ctrl+V).</div>
+          </div>
+          {% if not issue %}
+          <div class="mb-3">
+            <label class="form-label">Прикрепить файлы</label>
+            <input name="files" type="file" multiple class="form-control">
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card shadow-sm mb-3">
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="form-label">Статус</label>
+            <select name="status_id" class="form-select">
+              {% for s in statuses %}
+                <option value="{{ s.id }}" {{ 'selected' if cur.status_id|string == s.id|string }}>{{ s.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Автор (Reporter)</label>
+            <select name="reporter_id" class="form-select">
+              {% for u in users %}
+                <option value="{{ u.id }}" {{ 'selected' if cur.reporter_id|string == u.id|string }}>{{ u.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Исполнитель (Assignee)</label>
+            <select name="assignee_id" class="form-select">
+              <option value="">—</option>
+              {% for u in users %}
+                <option value="{{ u.id }}" {{ 'selected' if cur.assignee_id|string == u.id|string }}>{{ u.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Проект</label>
+            <select name="project_id" class="form-select">
+              <option value="">—</option>
+              {% for p in projects %}
+                <option value="{{ p.id }}" {{ 'selected' if cur.project_id|string == p.id|string }}>{{ p.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Команда</label>
+            <select name="team_id" class="form-select">
+              <option value="">—</option>
+              {% for t in teams %}
+                <option value="{{ t.id }}" {{ 'selected' if cur.team_id|string == t.id|string }}>{{ t.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Заказчик</label>
+            <select name="customer_id" class="form-select">
+              <option value="">—</option>
+              {% for c in customers %}
+                <option value="{{ c.id }}" {{ 'selected' if cur.customer_id|string == c.id|string }}>{{ c.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Спринт</label>
+            <select name="sprint_id" class="form-select">
+              <option value="">Backlog (вне спринта)</option>
+              {% if issue and issue.sprint and issue.sprint.is_closed %}
+                <option value="{{ issue.sprint.id }}" {{ 'selected' if cur.sprint_id|string == issue.sprint.id|string }}>
+                  {{ issue.sprint.name }} (закрыт)</option>
+              {% endif %}
+              {% for s in sprints %}
+                <option value="{{ s.id }}" {{ 'selected' if cur.sprint_id|string == s.id|string }}>{{ s.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+      </div>
+      <button class="btn btn-primary">{{ 'Сохранить' if issue else 'Создать' }}</button>
+      <a class="btn btn-outline-secondary"
+         href="{{ url_for('issues.view', issue_id=issue.id) if issue else url_for('issues.index') }}">Отмена</a>
+    </div>
+  </div>
+</form>
+
+<script type="application/json" id="parent-options">{{ parent_options | tojson }}</script>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+<script src="{{ url_for('static', filename='js/issue_form.js') }}"></script>
+{% endblock %}
