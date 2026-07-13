@@ -18,6 +18,11 @@
 .badge.type-task    { background: #198754; }
 .badge.type-bug     { background: #dc3545; }
 
+/* Выпадающее меню досок в навбаре: открывается по наведению */
+.navbar .dropdown-hover:hover > .dropdown-menu {
+  display: block;
+}
+
 /* ---------- Редактор ---------- */
 #summary-editor .ql-editor { min-height: 200px; }
 #comment-editor .ql-editor { min-height: 100px; }

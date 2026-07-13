@@ -1,6 +1,7 @@
 import os
 
 from flask import Flask, redirect, url_for
+from flask_login import current_user
 
 from .extensions import db, login_manager, migrate
 
@@ -34,6 +35,15 @@ def create_app():
     app.register_blueprint(boards_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(files_bp)
+
+    @app.context_processor
+    def inject_nav_boards():
+        """Список досок для выпадающего меню в навбаре."""
+        if current_user.is_authenticated:
+            boards = models.Board.query.order_by(models.Board.name).all()
+        else:
+            boards = []
+        return {'nav_boards': boards}
 
     @app.template_filter('dt')
     def format_dt(value):
