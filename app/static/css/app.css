@@ -6,6 +6,14 @@
   user-select: none;
 }
 
+.rendered-html {
+  overflow-wrap: break-word; /* длинные слова и ссылки не выезжают за блок */
+}
+
+.rendered-html pre {
+  white-space: pre-wrap;
+}
+
 .rendered-html img {
   max-width: 100%;
   height: auto;

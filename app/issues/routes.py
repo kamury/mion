@@ -11,6 +11,7 @@ from ..history import add_event, record_update, snapshot
 from ..models import (ISSUE_TYPES, PARENT_TYPE, Attachment, Comment, Component,
                       Customer, Issue, Project, Sprint, Status, Team, User)
 from ..sql_runner import run_ids_query
+from ..textutils import normalize_spaces
 
 bp = Blueprint('issues', __name__, url_prefix='/issues')
 
@@ -55,7 +56,7 @@ def _apply_form(issue):
     if not title:
         raise ValueError('Название обязательно.')
     issue.title = title
-    issue.summary = form.get('summary', '')
+    issue.summary = normalize_spaces(form.get('summary', ''))
 
     parent_id = form.get('parent_id') or None
     expected_parent = PARENT_TYPE[issue_type]
@@ -287,7 +288,7 @@ def delete(issue_id):
 @login_required
 def comment(issue_id):
     issue = db.session.get(Issue, issue_id) or abort(404)
-    body = request.form.get('body', '').strip()
+    body = normalize_spaces(request.form.get('body', '').strip())
     files = [f for f in request.files.getlist('files') if f and f.filename]
     if not body and not files:
         flash('Пустой комментарий.', 'danger')
