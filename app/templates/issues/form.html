@@ -10,7 +10,6 @@
   'parent_id': f.get('parent_id', issue.parent_id if issue else '') or '',
   'title': f.get('title', issue.title if issue else ''),
   'summary': f.get('summary', issue.summary if issue else ''),
-  'reporter_id': f.get('reporter_id', issue.reporter_id if issue else current_user.id) or '',
   'assignee_id': f.get('assignee_id', issue.assignee_id if issue else '') or '',
   'project_id': f.get('project_id', issue.project_id if issue else '') or '',
   'team_id': f.get('team_id', issue.team_id if issue else '') or '',
@@ -80,11 +79,8 @@
           </div>
           <div class="mb-3">
             <label class="form-label">Автор (Reporter)</label>
-            <select name="reporter_id" class="form-select">
-              {% for u in users %}
-                <option value="{{ u.id }}" {{ 'selected' if cur.reporter_id|string == u.id|string }}>{{ u.name }}</option>
-              {% endfor %}
-            </select>
+            <input class="form-control" disabled
+                   value="{{ issue.reporter.name if issue else current_user.name }}">
           </div>
           <div class="mb-3">
             <label class="form-label">Исполнитель (Assignee)</label>

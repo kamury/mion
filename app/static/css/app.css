@@ -13,10 +13,16 @@
 }
 
 /* Бейджи типов задач */
-.badge.type-epic    { background: #904ee2; }
-.badge.type-feature { background: #0d6efd; }
-.badge.type-task    { background: #198754; }
-.badge.type-bug     { background: #dc3545; }
+.badge.type-epic    { background: #C3BEF0; color: #364F6B; }
+.badge.type-feature { background: #AEDEFC; color: #364F6B; }
+.badge.type-task    { background: #A6E3E9; color: #364F6B; }
+.badge.type-bug     { background: #FFB6B9; color: #364F6B; }
+
+/* Бейджи статусов: «закрывающие» статусы (is_done) — бирюзовые */
+.badge.status-done { background: #00B8A9; color: #fff; }
+
+/* Мультиселекты в фильтре списка задач */
+.ts-wrapper.filter-select { min-width: 170px; }
 
 /* Выпадающее меню досок в навбаре: открывается по наведению */
 .navbar .dropdown-hover:hover > .dropdown-menu {

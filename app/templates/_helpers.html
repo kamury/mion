@@ -13,3 +13,7 @@
 {% macro type_badge(issue) -%}
   <span class="badge type-{{ issue.type }}">{{ issue.type_label }}</span>
 {%- endmacro %}
+
+{% macro status_badge(status) -%}
+  <span class="badge {{ 'status-done' if status.is_done else 'text-bg-secondary' }}">{{ status.name }}</span>
+{%- endmacro %}

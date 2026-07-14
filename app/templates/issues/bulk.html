@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% from '_helpers.html' import avatar, type_badge %}
+{% from '_helpers.html' import avatar, type_badge, status_badge %}
 {% block title %}Групповое редактирование — Трекер{% endblock %}
 
 {% macro set_select(field, label, items, clearable=True, use_title=False) %}
@@ -67,7 +67,7 @@
         <td><a href="{{ url_for('issues.view', issue_id=issue.id) }}" target="_blank">#{{ issue.id }}</a></td>
         <td>{{ type_badge(issue) }}</td>
         <td>{{ issue.title }}</td>
-        <td><span class="badge text-bg-secondary">{{ issue.status.name }}</span></td>
+        <td>{{ status_badge(issue.status) }}</td>
         <td>{{ issue.assignee.name if issue.assignee else '—' }}</td>
         <td>{{ issue.project.name if issue.project else '—' }}</td>
         <td>{{ issue.customer.name if issue.customer else '—' }}</td>

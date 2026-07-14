@@ -1,6 +1,9 @@
 {% extends 'base.html' %}
-{% from '_helpers.html' import avatar, type_badge %}
+{% from '_helpers.html' import avatar, type_badge, status_badge %}
 {% block title %}Задачи — Трекер{% endblock %}
+{% block head %}
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
   <h4 class="mb-0">Задачи</h4>
@@ -8,49 +11,44 @@
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('issues.bulk') }}">Групповое редактирование</a>
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('issues.import_excel') }}">Импорт из Excel</a>
     <a class="btn btn-outline-secondary btn-sm"
-       href="{{ url_for('issues.export', **request.args) }}">Экспорт в Excel</a>
+       href="{{ url_for('issues.export', **request.args.to_dict(flat=False)) }}">Экспорт в Excel</a>
     <a class="btn btn-success btn-sm" href="{{ url_for('issues.new') }}">+ Создать задачу</a>
   </div>
 </div>
 
 <form method="get" class="row g-2 mb-3">
   <div class="col-auto">
-    <select name="type" class="form-select form-select-sm">
-      <option value="">Любой тип</option>
+    <select name="type" multiple class="form-select form-select-sm filter-select" data-placeholder="Любой тип">
       {% for value, label in issue_types.items() %}
-        <option value="{{ value }}" {{ 'selected' if args.get('type') == value }}>{{ label }}</option>
+        <option value="{{ value }}" {{ 'selected' if value in args.getlist('type') }}>{{ label }}</option>
       {% endfor %}
     </select>
   </div>
   <div class="col-auto">
-    <select name="status_id" class="form-select form-select-sm">
-      <option value="">Любой статус</option>
+    <select name="status_id" multiple class="form-select form-select-sm filter-select" data-placeholder="Любой статус">
       {% for s in statuses %}
-        <option value="{{ s.id }}" {{ 'selected' if args.get('status_id') == s.id|string }}>{{ s.name }}</option>
+        <option value="{{ s.id }}" {{ 'selected' if s.id|string in args.getlist('status_id') }}>{{ s.name }}</option>
       {% endfor %}
     </select>
   </div>
   <div class="col-auto">
-    <select name="assignee_id" class="form-select form-select-sm">
-      <option value="">Любой исполнитель</option>
+    <select name="assignee_id" multiple class="form-select form-select-sm filter-select" data-placeholder="Любой исполнитель">
       {% for u in users %}
-        <option value="{{ u.id }}" {{ 'selected' if args.get('assignee_id') == u.id|string }}>{{ u.name }}</option>
+        <option value="{{ u.id }}" {{ 'selected' if u.id|string in args.getlist('assignee_id') }}>{{ u.name }}</option>
       {% endfor %}
     </select>
   </div>
   <div class="col-auto">
-    <select name="project_id" class="form-select form-select-sm">
-      <option value="">Любой проект</option>
+    <select name="project_id" multiple class="form-select form-select-sm filter-select" data-placeholder="Любой проект">
       {% for p in projects %}
-        <option value="{{ p.id }}" {{ 'selected' if args.get('project_id') == p.id|string }}>{{ p.name }}</option>
+        <option value="{{ p.id }}" {{ 'selected' if p.id|string in args.getlist('project_id') }}>{{ p.name }}</option>
       {% endfor %}
     </select>
   </div>
   <div class="col-auto">
-    <select name="component_id" class="form-select form-select-sm">
-      <option value="">Любой компонент</option>
+    <select name="component_id" multiple class="form-select form-select-sm filter-select" data-placeholder="Любой компонент">
       {% for c in components %}
-        <option value="{{ c.id }}" {{ 'selected' if args.get('component_id') == c.id|string }}>{{ c.name }}</option>
+        <option value="{{ c.id }}" {{ 'selected' if c.id|string in args.getlist('component_id') }}>{{ c.name }}</option>
       {% endfor %}
     </select>
   </div>
@@ -78,7 +76,7 @@
         <td><a href="{{ url_for('issues.view', issue_id=issue.id) }}">#{{ issue.id }}</a></td>
         <td>{{ type_badge(issue) }}</td>
         <td><a class="text-decoration-none" href="{{ url_for('issues.view', issue_id=issue.id) }}">{{ issue.title }}</a></td>
-        <td><span class="badge text-bg-secondary">{{ issue.status.name }}</span></td>
+        <td>{{ status_badge(issue.status) }}</td>
         <td>
           {% if issue.assignee %}
             <span class="d-inline-flex align-items-center gap-1">{{ avatar(issue.assignee, 22) }} {{ issue.assignee.name }}</span>
@@ -94,4 +92,16 @@
     </tbody>
   </table>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+<script>
+  document.querySelectorAll('select.filter-select').forEach(function (el) {
+    new TomSelect(el, {
+      plugins: ['remove_button'],
+      placeholder: el.dataset.placeholder,
+    });
+  });
+</script>
 {% endblock %}
