@@ -46,6 +46,13 @@
     </select>
   </div>
   <div class="col-auto">
+    <select name="team_id" multiple class="form-select form-select-sm filter-select" data-placeholder="Любая команда">
+      {% for t in teams %}
+        <option value="{{ t.id }}" {{ 'selected' if t.id|string in args.getlist('team_id') }}>{{ t.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
     <select name="component_id" multiple class="form-select form-select-sm filter-select" data-placeholder="Любой компонент">
       {% for c in components %}
         <option value="{{ c.id }}" {{ 'selected' if c.id|string in args.getlist('component_id') }}>{{ c.name }}</option>

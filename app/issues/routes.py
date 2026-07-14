@@ -114,6 +114,7 @@ def _filtered_issues(args):
     for field, column in (('status_id', Issue.status_id),
                           ('assignee_id', Issue.assignee_id),
                           ('project_id', Issue.project_id),
+                          ('team_id', Issue.team_id),
                           ('component_id', Issue.component_id)):
         ids = [int(v) for v in args.getlist(field) if v]
         if ids:
