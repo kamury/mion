@@ -4,7 +4,7 @@ from flask_login import login_required
 from sqlalchemy.exc import IntegrityError
 
 from ..extensions import db
-from ..models import Customer, Project, Status, Team
+from ..models import Component, Customer, Project, Status, Team
 
 bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -12,6 +12,7 @@ KINDS = {
     'project': (Project, 'Проект'),
     'team': (Team, 'Команда'),
     'customer': (Customer, 'Заказчик'),
+    'component': (Component, 'Компонент'),
     'status': (Status, 'Статус'),
 }
 
@@ -30,6 +31,7 @@ def index():
         projects=Project.query.order_by(Project.name).all(),
         teams=Team.query.order_by(Team.name).all(),
         customers=Customer.query.order_by(Customer.name).all(),
+        components=Component.query.order_by(Component.name).all(),
         statuses=Status.query.order_by(Status.position).all(),
     )
 

@@ -47,6 +47,14 @@
     </select>
   </div>
   <div class="col-auto">
+    <select name="component_id" class="form-select form-select-sm">
+      <option value="">Любой компонент</option>
+      {% for c in components %}
+        <option value="{{ c.id }}" {{ 'selected' if args.get('component_id') == c.id|string }}>{{ c.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
     <input name="q" class="form-control form-control-sm" placeholder="Поиск по названию"
            value="{{ args.get('q', '') }}">
   </div>

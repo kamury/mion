@@ -60,6 +60,12 @@ class Customer(db.Model):
     name = db.Column(db.String(120), unique=True, nullable=False)
 
 
+class Component(db.Model):
+    __tablename__ = 'components'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), unique=True, nullable=False)
+
+
 class Status(db.Model):
     __tablename__ = 'statuses'
     id = db.Column(db.Integer, primary_key=True)
@@ -99,6 +105,7 @@ class Issue(db.Model):
     project_id = db.Column(db.Integer, db.ForeignKey('projects.id'))
     team_id = db.Column(db.Integer, db.ForeignKey('teams.id'))
     customer_id = db.Column(db.Integer, db.ForeignKey('customers.id'))
+    component_id = db.Column(db.Integer, db.ForeignKey('components.id'))
 
     sprint_id = db.Column(db.Integer, db.ForeignKey('sprints.id'))
     status_id = db.Column(db.Integer, db.ForeignKey('statuses.id'), nullable=False)
@@ -113,6 +120,7 @@ class Issue(db.Model):
     project = db.relationship('Project')
     team = db.relationship('Team')
     customer = db.relationship('Customer')
+    component = db.relationship('Component')
     status = db.relationship('Status')
 
     comments = db.relationship('Comment', backref='issue',

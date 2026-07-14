@@ -15,6 +15,7 @@ FIELD_LABELS = {
     'project_id': 'Проект',
     'team_id': 'Команда',
     'customer_id': 'Заказчик',
+    'component_id': 'Компонент',
     'sprint_id': 'Спринт',
     'status_id': 'Статус',
 }
@@ -26,6 +27,7 @@ _FK_MODELS = {
     'project_id': ('Project', 'name'),
     'team_id': ('Team', 'name'),
     'customer_id': ('Customer', 'name'),
+    'component_id': ('Component', 'name'),
     'sprint_id': ('Sprint', 'name'),
     'status_id': ('Status', 'name'),
 }

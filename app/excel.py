@@ -19,7 +19,8 @@ from markupsafe import escape
 
 from .extensions import db
 from .history import add_event
-from .models import (Customer, Issue, Project, Sprint, Status, Team, User)
+from .models import (Component, Customer, Issue, Project, Sprint, Status,
+                     Team, User)
 
 # Заголовок столбца (lower) -> наше поле
 COLUMN_MAP = {
@@ -40,6 +41,9 @@ COLUMN_MAP = {
     'команда': 'team',
     'customer': 'customer',
     'заказчик': 'customer',
+    'component': 'component',
+    'components': 'component',
+    'компонент': 'component',
     'sprint': 'sprint',
     'спринт': 'sprint',
     'created': 'created',
@@ -200,6 +204,7 @@ def import_rows(rows, current_user):
         'project': (_lookup_cache(Project), Project),
         'team': (_lookup_cache(Team), Team),
         'customer': (_lookup_cache(Customer), Customer),
+        'component': (_lookup_cache(Component), Component),
     }
     statuses = _lookup_cache(Status)
     sprints = _lookup_cache(Sprint)
@@ -251,7 +256,8 @@ def import_rows(rows, current_user):
 
         # Справочники
         for kind, attr in (('project', 'project_id'), ('team', 'team_id'),
-                           ('customer', 'customer_id')):
+                           ('customer', 'customer_id'),
+                           ('component', 'component_id')):
             name = _cell(row, colmap, kind)
             if name:
                 setattr(issue, attr, get_or_create_dict(kind, str(name)[:120]).id)
@@ -308,8 +314,8 @@ def import_rows(rows, current_user):
 # ---------- Экспорт ----------
 
 EXPORT_HEADERS = ['Key', 'Project', 'Summary', 'Issue Type', 'Status',
-                  'Assignee', 'Reporter', 'Team', 'Customer', 'Sprint',
-                  'Parent', 'Created', 'Updated', 'Description']
+                  'Assignee', 'Reporter', 'Team', 'Customer', 'Component',
+                  'Sprint', 'Parent', 'Created', 'Updated', 'Description']
 
 
 def _plain_text(html):
@@ -340,6 +346,7 @@ def build_export(issues):
             issue.reporter.name,
             issue.team.name if issue.team else '',
             issue.customer.name if issue.customer else '',
+            issue.component.name if issue.component else '',
             issue.sprint.name if issue.sprint else '',
             f'#{issue.parent_id}' if issue.parent_id else '',
             issue.created_at.strftime('%d.%m.%Y %H:%M'),
@@ -347,7 +354,7 @@ def build_export(issues):
             _plain_text(issue.summary),
         ])
 
-    widths = [8, 18, 50, 10, 14, 20, 20, 15, 15, 15, 8, 17, 17, 60]
+    widths = [8, 18, 50, 10, 14, 20, 20, 15, 15, 15, 15, 8, 17, 17, 60]
     for idx, width in enumerate(widths, start=1):
         sheet.column_dimensions[openpyxl.utils.get_column_letter(idx)].width = width
 

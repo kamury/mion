@@ -14,12 +14,20 @@
 <div class="mb-3 d-flex gap-2 flex-wrap">
   <span class="text-muted small align-self-center">Быстрые фильтры:</span>
   {% for qf in board.filters %}
-    {% if active_filter and active_filter.id == qf.id %}
-      <a class="btn btn-primary btn-sm" href="{{ url_for('boards.view', board_id=board.id) }}">{{ qf.name }} ✕</a>
+    {% if qf.id in active_filter_ids %}
+      {# клик по активному фильтру выключает его, остальные остаются #}
+      <a class="btn btn-primary btn-sm"
+         href="{{ url_for('boards.view', board_id=board.id, filter=active_filter_ids | reject('equalto', qf.id) | list) }}">{{ qf.name }} ✕</a>
     {% else %}
-      <a class="btn btn-outline-primary btn-sm" href="{{ url_for('boards.view', board_id=board.id, filter=qf.id) }}">{{ qf.name }}</a>
+      {# клик добавляет фильтр к уже выбранным: выборки пересекаются #}
+      <a class="btn btn-outline-primary btn-sm"
+         href="{{ url_for('boards.view', board_id=board.id, filter=active_filter_ids + [qf.id]) }}">{{ qf.name }}</a>
     {% endif %}
   {% endfor %}
+  {% if active_filter_ids | length > 1 %}
+    <a class="btn btn-link btn-sm text-decoration-none"
+       href="{{ url_for('boards.view', board_id=board.id) }}">сбросить все</a>
+  {% endif %}
 </div>
 {% endif %}
 

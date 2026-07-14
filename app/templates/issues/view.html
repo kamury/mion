@@ -187,6 +187,8 @@
           <dd class="col-8 mb-1">{{ field_select('team_id', teams, issue.team_id, '—') }}</dd>
           <dt class="col-4 mt-2">Заказчик</dt>
           <dd class="col-8 mb-1">{{ field_select('customer_id', customers, issue.customer_id, '—') }}</dd>
+          <dt class="col-4 mt-2">Компонент</dt>
+          <dd class="col-8 mb-1">{{ field_select('component_id', components, issue.component_id, '—') }}</dd>
           <dt class="col-4 mt-2">Спринт</dt>
           <dd class="col-8 mb-1">
             <form method="post" action="{{ url_for('issues.set_field', issue_id=issue.id) }}">

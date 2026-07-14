@@ -15,6 +15,7 @@
   'project_id': f.get('project_id', issue.project_id if issue else '') or '',
   'team_id': f.get('team_id', issue.team_id if issue else '') or '',
   'customer_id': f.get('customer_id', issue.customer_id if issue else '') or '',
+  'component_id': f.get('component_id', issue.component_id if issue else '') or '',
   'sprint_id': f.get('sprint_id', issue.sprint_id if issue else '') or '',
   'status_id': f.get('status_id', issue.status_id if issue else '') or '',
 } %}
@@ -118,6 +119,15 @@
               <option value="">—</option>
               {% for c in customers %}
                 <option value="{{ c.id }}" {{ 'selected' if cur.customer_id|string == c.id|string }}>{{ c.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Компонент</label>
+            <select name="component_id" class="form-select">
+              <option value="">—</option>
+              {% for c in components %}
+                <option value="{{ c.id }}" {{ 'selected' if cur.component_id|string == c.id|string }}>{{ c.name }}</option>
               {% endfor %}
             </select>
           </div>

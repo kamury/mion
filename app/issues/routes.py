@@ -8,8 +8,8 @@ from ..excel import build_export, import_rows, read_rows
 from ..extensions import db
 from ..files import save_upload
 from ..history import add_event, record_update, snapshot
-from ..models import (ISSUE_TYPES, PARENT_TYPE, Attachment, Comment, Customer,
-                      Issue, Project, Sprint, Status, Team, User)
+from ..models import (ISSUE_TYPES, PARENT_TYPE, Attachment, Comment, Component,
+                      Customer, Issue, Project, Sprint, Status, Team, User)
 from ..sql_runner import run_ids_query
 
 bp = Blueprint('issues', __name__, url_prefix='/issues')
@@ -21,6 +21,7 @@ def _form_choices():
         projects=Project.query.order_by(Project.name).all(),
         teams=Team.query.order_by(Team.name).all(),
         customers=Customer.query.order_by(Customer.name).all(),
+        components=Component.query.order_by(Component.name).all(),
         sprints=Sprint.query.filter_by(is_closed=False)
                             .order_by(Sprint.start_date).all(),
         statuses=Status.query.order_by(Status.position).all(),
@@ -69,7 +70,7 @@ def _apply_form(issue):
         issue.parent_id = None
 
     for field in ('reporter_id', 'assignee_id', 'project_id', 'team_id',
-                  'customer_id', 'sprint_id', 'status_id'):
+                  'customer_id', 'component_id', 'sprint_id', 'status_id'):
         value = form.get(field) or None
         setattr(issue, field, int(value) if value else None)
 
@@ -113,6 +114,8 @@ def _filtered_issues(args):
         query = query.filter_by(assignee_id=int(args['assignee_id']))
     if args.get('project_id'):
         query = query.filter_by(project_id=int(args['project_id']))
+    if args.get('component_id'):
+        query = query.filter_by(component_id=int(args['component_id']))
     if args.get('q'):
         query = query.filter(Issue.title.ilike(f"%{args['q']}%"))
     return query.order_by(Issue.id.desc()).all()
@@ -160,7 +163,7 @@ def import_excel():
 
 
 BULK_FIELDS = ('status_id', 'assignee_id', 'reporter_id', 'project_id',
-               'team_id', 'customer_id', 'sprint_id')
+               'team_id', 'customer_id', 'component_id', 'sprint_id')
 # Поля, которые нельзя очистить (NOT NULL)
 BULK_REQUIRED = {'status_id', 'reporter_id'}
 
@@ -319,6 +322,7 @@ INLINE_FIELDS = {
     'project_id': (Project, True),
     'team_id': (Team, True),
     'customer_id': (Customer, True),
+    'component_id': (Component, True),
     'sprint_id': (Sprint, True),
 }
 

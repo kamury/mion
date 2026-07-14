@@ -110,17 +110,20 @@ def view(board_id):
     except Exception as e:
         error = f'Ошибка в запросе доски: {e}'
 
-    active_filter_id = request.args.get('filter', type=int)
-    active_filter = None
-    if active_filter_id and not error:
-        active_filter = db.session.get(QuickFilter, active_filter_id)
-        if active_filter and active_filter.board_id == board.id:
+    # Быстрые фильтры: можно выбрать несколько, выборки пересекаются (И).
+    # Взаимоисключающие фильтры дают пустую доску — это ожидаемо.
+    selected_ids = set(request.args.getlist('filter', type=int))
+    active_filter_ids = []
+    if selected_ids and not error:
+        for qfilter in board.filters:
+            if qfilter.id not in selected_ids:
+                continue
+            active_filter_ids.append(qfilter.id)
             try:
-                issue_ids &= run_ids_query(active_filter.query_sql, params)
+                issue_ids &= run_ids_query(qfilter.query_sql, params)
             except Exception as e:
-                error = f'Ошибка в быстром фильтре «{active_filter.name}»: {e}'
-        else:
-            active_filter = None
+                error = f'Ошибка в быстром фильтре «{qfilter.name}»: {e}'
+                break
 
     issues = (Issue.query.filter(Issue.id.in_(issue_ids)).all()
               if issue_ids else [])
@@ -168,7 +171,7 @@ def view(board_id):
                            statuses=statuses, board_sprints=board_sprints,
                            all_open_sprints=all_open_sprints,
                            unfinished_by_sprint=unfinished_by_sprint,
-                           active_filter=active_filter, error=error,
+                           active_filter_ids=active_filter_ids, error=error,
                            issue_count=len(issues))
 
 
