@@ -1,4 +1,7 @@
 import os
+import re
+import time
+from uuid import uuid4
 
 from flask import (Blueprint, abort, current_app, flash, jsonify, redirect,
                    render_template, request, send_file, url_for)
@@ -146,23 +149,62 @@ def export():
     )
 
 
+def _import_tmp_dir():
+    """Папка для файлов, ожидающих подтверждения импорта. Чистит старые."""
+    tmp_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'import_tmp')
+    os.makedirs(tmp_dir, exist_ok=True)
+    now = time.time()
+    for name in os.listdir(tmp_dir):
+        path = os.path.join(tmp_dir, name)
+        if now - os.path.getmtime(path) > 24 * 3600:
+            os.remove(path)
+    return tmp_dir
+
+
 @bp.route('/import', methods=['GET', 'POST'])
 @login_required
 def import_excel():
-    result = None
-    if request.method == 'POST':
-        file = request.files.get('file')
-        if not file or not file.filename:
-            flash('Выбери файл.', 'danger')
+    """Импорт в два шага: предпросмотр (сухой прогон) -> подтверждение."""
+    result = preview = None
+    token = filename = ''
+
+    if request.method == 'POST' and request.form.get('action') == 'confirm':
+        token = request.form.get('token', '')
+        filename = request.form.get('filename', '')
+        path = os.path.join(_import_tmp_dir(), token)
+        if not re.fullmatch(r'[0-9a-f]{32}', token) or not os.path.exists(path):
+            flash('Файл предпросмотра не найден (мог устареть) — загрузи его ещё раз.', 'danger')
         else:
+            with open(path, 'rb') as f:
+                data = f.read()
+            os.remove(path)
             try:
-                rows = read_rows(file.read(), file.filename)
-                result = import_rows(rows, current_user)
+                result = import_rows(read_rows(data, filename), current_user)
                 flash(f"Импортировано задач: {result['created']}.", 'success')
             except Exception as e:
                 db.session.rollback()
                 flash(f'Ошибка импорта: {e}', 'danger')
-    return render_template('issues/import.html', result=result)
+        token = filename = ''
+    elif request.method == 'POST':
+        file = request.files.get('file')
+        if not file or not file.filename:
+            flash('Выбери файл.', 'danger')
+        else:
+            data = file.read()
+            try:
+                preview = import_rows(read_rows(data, file.filename),
+                                      current_user, dry_run=True)
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Ошибка чтения файла: {e}', 'danger')
+            else:
+                token = uuid4().hex
+                with open(os.path.join(_import_tmp_dir(), token), 'wb') as f:
+                    f.write(data)
+                filename = file.filename
+
+    return render_template('issues/import.html', result=result, preview=preview,
+                           token=token, filename=filename)
 
 
 BULK_FIELDS = ('status_id', 'assignee_id', 'reporter_id', 'project_id',

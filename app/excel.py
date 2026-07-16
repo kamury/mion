@@ -19,8 +19,8 @@ from markupsafe import escape
 
 from .extensions import db
 from .history import add_event
-from .models import (Component, Customer, Issue, Project, Sprint, Status,
-                     Team, User)
+from .models import (ISSUE_TYPES, PARENT_TYPE, Component, Customer, Issue,
+                     Project, Sprint, Status, Team, User)
 
 # Заголовок столбца (lower) -> наше поле
 COLUMN_MAP = {
@@ -52,6 +52,8 @@ COLUMN_MAP = {
     'обновлена': 'updated',
     'description': 'description',
     'описание': 'description',
+    'epic link': 'epic_link',
+    'epic name': 'epic_name',
 }
 
 TYPE_MAP = {
@@ -186,8 +188,12 @@ def _parse_date(value):
     return None
 
 
-def import_rows(rows, current_user):
-    """Создаёт задачи из таблицы. Возвращает статистику и предупреждения."""
+def import_rows(rows, current_user, dry_run=False):
+    """Создаёт задачи из таблицы. Возвращает статистику и предупреждения.
+
+    При dry_run=True ничего не сохраняет (транзакция откатывается), но
+    возвращает ту же статистику — для предпросмотра перед импортом.
+    """
     header_idx, colmap = find_header(rows)
     if 'title' not in colmap:
         raise ValueError('Не найден столбец Summary / Название.')
@@ -209,6 +215,10 @@ def import_rows(rows, current_user):
     statuses = _lookup_cache(Status)
     sprints = _lookup_cache(Sprint)
     users = {u.name.strip().lower(): u for u in User.query.all()}
+    # Эпики для привязки по Epic Link: уже существующие + созданные этим импортом
+    epics = {i.title.strip().lower(): i
+             for i in Issue.query.filter_by(type='epic').all()}
+    pending_epic_links = []  # (issue, значение Epic Link)
     next_position = (db.session.query(db.func.max(Status.position)).scalar() or 0) + 1
 
     def get_or_create_dict(kind, name):
@@ -307,8 +317,44 @@ def import_rows(rows, current_user):
         add_event(issue, current_user, 'created')
         created += 1
 
-    db.session.commit()
-    return {'created': created, 'skipped': skipped, 'warnings': sorted(warnings)}
+        if issue.type == 'epic':
+            epics.setdefault(issue.title.strip().lower(), issue)
+            # В Jira Epic Link ссылается на Epic Name, который может
+            # отличаться от Summary — запоминаем оба варианта.
+            epic_name = _cell(row, colmap, 'epic_name')
+            if epic_name:
+                epics.setdefault(str(epic_name).strip().lower(), issue)
+
+        epic_link = _cell(row, colmap, 'epic_link')
+        if epic_link:
+            pending_epic_links.append((issue, str(epic_link).strip()))
+
+    # Привязка к эпикам: после основного цикла, потому что эпик может
+    # встретиться в файле позже своих задач.
+    epic_linked = 0
+    epic_link_rejected = []
+    for issue, epic_name in pending_epic_links:
+        epic = epics.get(epic_name.lower())
+        if not epic:
+            warnings.add(f'Эпик «{epic_name}» не найден — привязка пропущена.')
+            continue
+        if PARENT_TYPE.get(issue.type) == 'epic':
+            issue.parent_id = epic.id
+            epic_linked += 1
+        else:
+            epic_link_rejected.append({
+                'id': issue.id,
+                'title': issue.title,
+                'type': ISSUE_TYPES.get(issue.type, issue.type),
+                'epic': epic.title,
+            })
+
+    if dry_run:
+        db.session.rollback()
+    else:
+        db.session.commit()
+    return {'created': created, 'skipped': skipped, 'warnings': sorted(warnings),
+            'epic_linked': epic_linked, 'epic_link_rejected': epic_link_rejected}
 
 
 # ---------- Экспорт ----------

@@ -12,11 +12,48 @@
             <input name="file" type="file" class="form-control"
                    accept=".xlsx,.xls,.htm,.html" required>
           </div>
-          <button class="btn btn-primary">Импортировать</button>
+          <button class="btn btn-primary">Проверить файл</button>
           <a class="btn btn-outline-secondary" href="{{ url_for('issues.index') }}">Назад к задачам</a>
         </form>
       </div>
     </div>
+
+    {% if preview %}
+    <div class="card shadow-sm mb-3 border-primary">
+      <div class="card-body">
+        <h6>Предпросмотр: {{ filename }}</h6>
+        <p class="mb-1 text-muted small">Пока ничего не импортировано — проверь список ниже.
+          Если что-то не так, исправь файл и загрузи его заново.</p>
+        <p class="mb-1">Будет создано задач: <strong>{{ preview.created }}</strong>,
+          пропущено строк без названия: {{ preview.skipped }}.</p>
+        {% if preview.epic_linked %}
+          <p class="mb-1">Привяжется к эпикам по Epic Link: <strong>{{ preview.epic_linked }}</strong>.</p>
+        {% endif %}
+        {% if preview.warnings %}
+          <p class="mb-1 mt-2 text-warning-emphasis">Предупреждения:</p>
+          <ul class="small mb-0">
+            {% for w in preview.warnings %}<li>{{ w }}</li>{% endfor %}
+          </ul>
+        {% endif %}
+        {% if preview.epic_link_rejected %}
+          <p class="mb-1 mt-2 text-warning-emphasis">Не привяжутся к эпику — тип не может
+            быть дочерним для Epic (только Feature):</p>
+          <ul class="small mb-0">
+            {% for r in preview.epic_link_rejected %}
+              <li>[{{ r.type }}] {{ r.title | truncate(60) }} → эпик «{{ r.epic }}»</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+        <form method="post" class="d-flex gap-2 mt-3">
+          <input type="hidden" name="action" value="confirm">
+          <input type="hidden" name="token" value="{{ token }}">
+          <input type="hidden" name="filename" value="{{ filename }}">
+          <button class="btn btn-success">Импортировать {{ preview.created }} задач</button>
+          <a class="btn btn-outline-secondary" href="{{ url_for('issues.import_excel') }}">Отмена</a>
+        </form>
+      </div>
+    </div>
+    {% endif %}
 
     {% if result %}
     <div class="card shadow-sm mb-3">
@@ -24,10 +61,23 @@
         <h6>Результат импорта</h6>
         <p class="mb-1">Создано задач: <strong>{{ result.created }}</strong>,
           пропущено строк без названия: {{ result.skipped }}.</p>
+        {% if result.epic_linked %}
+          <p class="mb-1">Привязано к эпикам по Epic Link: <strong>{{ result.epic_linked }}</strong>.</p>
+        {% endif %}
         {% if result.warnings %}
           <p class="mb-1 mt-2 text-warning-emphasis">Предупреждения:</p>
           <ul class="small mb-0">
             {% for w in result.warnings %}<li>{{ w }}</li>{% endfor %}
+          </ul>
+        {% endif %}
+        {% if result.epic_link_rejected %}
+          <p class="mb-1 mt-2 text-warning-emphasis">Не привязаны к эпику — тип не может
+            быть дочерним для Epic (только Feature):</p>
+          <ul class="small mb-0">
+            {% for r in result.epic_link_rejected %}
+              <li><a href="{{ url_for('issues.view', issue_id=r.id) }}" target="_blank">#{{ r.id }}</a>
+                [{{ r.type }}] {{ r.title | truncate(60) }} → эпик «{{ r.epic }}»</li>
+            {% endfor %}
           </ul>
         {% endif %}
       </div>
@@ -51,6 +101,11 @@
             незнакомые имена остаются пустыми (пользователи не создаются).</li>
           <li>Типы Jira: Task → Task, Bug → Bug, Story → Feature, Sub-task → Task,
             Epic → Epic. Неизвестный тип станет Task.</li>
+          <li><code>Epic Link</code> привязывает задачу к эпику по названию
+            (эпик ищется среди существующих и создаваемых этим же импортом).
+            Привязка возможна только для Feature — иерархия
+            Epic → Feature → Task/Bug не нарушается, остальные попадут
+            в отчёт ниже.</li>
         </ul>
         <p class="mb-0 text-muted">Экспортированный из трекера файл можно импортировать обратно —
           столбцы совместимы.</p>

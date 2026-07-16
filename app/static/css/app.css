@@ -27,7 +27,7 @@
 .badge.type-bug     { background: #FFB6B9; color: #364F6B; }
 
 /* Бейджи статусов: «закрывающие» статусы (is_done) — бирюзовые */
-.badge.status-done { background: #00B8A9; color: #fff; }
+.badge.status-done { background: #2EB872; color: #fff; }
 
 /* Мультиселекты в фильтре списка задач */
 .ts-wrapper.filter-select { min-width: 170px; }
