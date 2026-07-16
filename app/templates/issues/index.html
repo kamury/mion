@@ -10,8 +10,6 @@
   <div class="d-flex gap-2">
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('issues.bulk') }}">Групповое редактирование</a>
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('issues.import_excel') }}">Импорт из Excel</a>
-    <a class="btn btn-outline-secondary btn-sm"
-       href="{{ url_for('issues.export', **request.args.to_dict(flat=False)) }}">Экспорт в Excel</a>
     <a class="btn btn-success btn-sm" href="{{ url_for('issues.new') }}">+ Создать задачу</a>
   </div>
 </div>
@@ -65,6 +63,8 @@
   </div>
   <div class="col-auto">
     <button class="btn btn-primary btn-sm">Фильтровать</button>
+    <a class="btn btn-outline-secondary btn-sm"
+       href="{{ url_for('issues.export', **request.args.to_dict(flat=False)) }}">Экспорт в Excel</a>
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('issues.index') }}">Сбросить</a>
   </div>
 </form>
