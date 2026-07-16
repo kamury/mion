@@ -279,7 +279,26 @@ def new():
         db.session.commit()
         flash(f'Задача #{issue.id} создана.', 'success')
         return redirect(url_for('issues.view', issue_id=issue.id))
-    return render_template('issues/form.html', issue=None, form_data=None,
+    # «Добавить связанную задачу» со страницы эпика/фичи: предзаполняем
+    # тип, родителя и поля из родителя.
+    form_data = None
+    raw_parent = request.args.get('parent_id', '')
+    if raw_parent.isdigit():
+        parent = db.session.get(Issue, int(raw_parent))
+        child_type = {'epic': 'feature', 'feature': 'task'}.get(parent.type) if parent else None
+        if parent and child_type:
+            form_data = {
+                'type': child_type,
+                'parent_id': parent.id,
+                'project_id': parent.project_id or '',
+                'customer_id': parent.customer_id or '',
+                'team_id': parent.team_id or '',
+                'component_id': parent.component_id or '',
+                'sprint_id': (parent.sprint_id
+                              if parent.sprint and not parent.sprint.is_closed
+                              else ''),
+            }
+    return render_template('issues/form.html', issue=None, form_data=form_data,
                            parent_options=_parent_options(), **_form_choices())
 
 

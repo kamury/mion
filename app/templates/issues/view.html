@@ -13,6 +13,10 @@
     {% endif %}
   </div>
   <div class="d-flex gap-2">
+    {% if issue.type in ('epic', 'feature') %}
+      <a class="btn btn-success btn-sm" href="{{ url_for('issues.new', parent_id=issue.id) }}">
+        + Добавить связанную задачу</a>
+    {% endif %}
     <a class="btn btn-primary btn-sm" href="{{ url_for('issues.edit', issue_id=issue.id) }}">Редактировать</a>
     <form method="post" action="{{ url_for('issues.delete', issue_id=issue.id) }}"
           onsubmit="return confirm('Удалить задачу #{{ issue.id }}? Действие необратимо.');">
