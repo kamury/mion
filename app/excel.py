@@ -54,6 +54,8 @@ COLUMN_MAP = {
     'описание': 'description',
     'epic link': 'epic_link',
     'epic name': 'epic_name',
+    'priority': 'priority',
+    'приоритет': 'priority',
 }
 
 TYPE_MAP = {
@@ -66,6 +68,21 @@ TYPE_MAP = {
     'improvement': 'task',
     'bug': 'bug',
     'баг': 'bug',
+}
+
+# Приоритеты Jira (обе стандартные схемы) -> наши
+PRIORITY_MAP = {
+    'blocker': 'critical',
+    'critical': 'critical',
+    'highest': 'highest',
+    'high': 'high',
+    'major': 'high',
+    'medium': 'normal',
+    'normal': 'normal',
+    'minor': 'low',
+    'low': 'low',
+    'lowest': 'low',
+    'trivial': 'low',
 }
 
 DONE_STATUS_WORDS = {'done', 'closed', 'resolved', 'готово', 'закрыто', 'закрыт'}
@@ -244,6 +261,12 @@ def import_rows(rows, current_user, dry_run=False):
         if str(raw_type).lower() not in TYPE_MAP:
             warnings.add(f'Неизвестный тип «{raw_type}» — импортирован как Task.')
 
+        raw_priority = _cell(row, colmap, 'priority')
+        if raw_priority:
+            issue.priority = PRIORITY_MAP.get(str(raw_priority).lower(), 'normal')
+            if str(raw_priority).lower() not in PRIORITY_MAP:
+                warnings.add(f'Неизвестный приоритет «{raw_priority}» — записан Normal.')
+
         # Статус: создаём при необходимости
         status_name = _cell(row, colmap, 'status')
         status_obj = None
@@ -359,9 +382,10 @@ def import_rows(rows, current_user, dry_run=False):
 
 # ---------- Экспорт ----------
 
-EXPORT_HEADERS = ['Key', 'Project', 'Summary', 'Issue Type', 'Status',
-                  'Assignee', 'Reporter', 'Team', 'Customer', 'Component',
-                  'Sprint', 'Parent', 'Created', 'Updated', 'Description']
+EXPORT_HEADERS = ['Key', 'Project', 'Summary', 'Issue Type', 'Priority',
+                  'Status', 'Assignee', 'Reporter', 'Team', 'Customer',
+                  'Component', 'Sprint', 'Parent', 'Created', 'Updated',
+                  'Description']
 
 
 def _plain_text(html):
@@ -387,6 +411,7 @@ def build_export(issues):
             issue.project.name if issue.project else '',
             issue.title,
             issue.type_label,
+            issue.priority_label,
             issue.status.name,
             issue.assignee.name if issue.assignee else '',
             issue.reporter.name,
@@ -400,7 +425,7 @@ def build_export(issues):
             _plain_text(issue.summary),
         ])
 
-    widths = [8, 18, 50, 10, 14, 20, 20, 15, 15, 15, 15, 8, 17, 17, 60]
+    widths = [8, 18, 50, 10, 10, 14, 20, 20, 15, 15, 15, 15, 8, 17, 17, 60]
     for idx, width in enumerate(widths, start=1):
         sheet.column_dimensions[openpyxl.utils.get_column_letter(idx)].width = width
 

@@ -32,6 +32,18 @@
 /* Мультиселекты в фильтре списка задач */
 .ts-wrapper.filter-select { min-width: 170px; }
 
+/* Приоритеты: важные выделяем цветом */
+.prio-critical { color: #c0392b; font-weight: 600; }
+.prio-highest  { color: #e17055; font-weight: 600; }
+.prio-low      { color: #6c757d; }
+
+/* Стрелочки приоритета: critical ↑↑ и highest ↑ красные,
+   high ↑ оранжевая, normal ↑ и low ↓ чёрные */
+.prio-arrow { font-weight: 700; cursor: default; }
+.prio-arrow-critical, .prio-arrow-highest { color: #dc3545; }
+.prio-arrow-high { color: #fd7e14; }
+.prio-arrow-normal, .prio-arrow-low { color: #212529; }
+
 /* Выпадающее меню досок в навбаре: открывается по наведению */
 .navbar .dropdown-hover:hover > .dropdown-menu {
   display: block;

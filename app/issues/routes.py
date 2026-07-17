@@ -11,8 +11,9 @@ from ..excel import build_export, import_rows, read_rows
 from ..extensions import db
 from ..files import save_upload
 from ..history import add_event, record_update, snapshot
-from ..models import (ISSUE_TYPES, PARENT_TYPE, Attachment, Comment, Component,
-                      Customer, Issue, Project, Sprint, Status, Team, User)
+from ..models import (ISSUE_TYPES, PARENT_TYPE, PRIORITIES, Attachment,
+                      Comment, Component, Customer, Issue, Project, Sprint,
+                      Status, Team, User)
 from ..sql_runner import run_ids_query
 from ..textutils import normalize_spaces
 
@@ -30,6 +31,7 @@ def _form_choices():
                             .order_by(Sprint.start_date).all(),
         statuses=Status.query.order_by(Status.position).all(),
         issue_types=ISSUE_TYPES,
+        priorities=PRIORITIES,
     )
 
 
@@ -60,6 +62,11 @@ def _apply_form(issue):
         raise ValueError('Название обязательно.')
     issue.title = title
     issue.summary = normalize_spaces(form.get('summary', ''))
+
+    priority = form.get('priority') or 'normal'
+    if priority not in PRIORITIES:
+        raise ValueError('Неизвестный приоритет.')
+    issue.priority = priority
 
     parent_id = form.get('parent_id') or None
     expected_parent = PARENT_TYPE[issue_type]
@@ -114,6 +121,9 @@ def _filtered_issues(args):
     types = [v for v in args.getlist('type') if v]
     if types:
         query = query.filter(Issue.type.in_(types))
+    prios = [v for v in args.getlist('priority') if v]
+    if prios:
+        query = query.filter(Issue.priority.in_(prios))
     for field, column in (('status_id', Issue.status_id),
                           ('assignee_id', Issue.assignee_id),
                           ('project_id', Issue.project_id),
@@ -290,6 +300,7 @@ def new():
             form_data = {
                 'type': child_type,
                 'parent_id': parent.id,
+                'priority': parent.priority,
                 'project_id': parent.project_id or '',
                 'customer_id': parent.customer_id or '',
                 'team_id': parent.team_id or '',
@@ -397,6 +408,15 @@ def set_field(issue_id):
     """Смена одного поля со страницы просмотра задачи."""
     issue = db.session.get(Issue, issue_id) or abort(404)
     field = request.form.get('field', '')
+    if field == 'priority':
+        value = request.form.get('value', '')
+        if value not in PRIORITIES:
+            abort(400)
+        old = snapshot(issue)
+        issue.priority = value
+        record_update(issue, old, current_user)
+        db.session.commit()
+        return redirect(url_for('issues.view', issue_id=issue.id))
     if field not in INLINE_FIELDS:
         abort(400)
     model, nullable = INLINE_FIELDS[field]

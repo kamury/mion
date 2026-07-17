@@ -10,6 +10,7 @@ FIELD_LABELS = {
     'parent_id': 'Родитель',
     'title': 'Название',
     'summary': 'Описание',
+    'priority': 'Приоритет',
     'reporter_id': 'Автор',
     'assignee_id': 'Исполнитель',
     'project_id': 'Проект',
@@ -48,6 +49,8 @@ def _display(field, value):
         return text[:200] + '…' if len(text) > 200 else text
     if field == 'type':
         return models.ISSUE_TYPES.get(value, str(value))
+    if field == 'priority':
+        return models.PRIORITIES.get(value, str(value))
     if field in _FK_MODELS:
         model_name, attr = _FK_MODELS[field]
         obj = db.session.get(getattr(models, model_name), value)

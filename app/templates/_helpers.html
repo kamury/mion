@@ -17,3 +17,10 @@
 {% macro status_badge(status) -%}
   <span class="badge {{ 'status-done' if status.is_done else 'text-bg-secondary' }}">{{ status.name }}</span>
 {%- endmacro %}
+
+{% macro priority_arrow(issue) -%}
+  {%- set arrows = {'critical': '↑↑', 'highest': '↑', 'high': '↑',
+                    'normal': '↑', 'low': '↓'} -%}
+  <span class="prio-arrow prio-arrow-{{ issue.priority }}"
+        title="Приоритет: {{ issue.priority_label }}">{{ arrows.get(issue.priority, '↑') }}</span>
+{%- endmacro %}

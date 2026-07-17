@@ -169,6 +169,17 @@
         <dl class="row mb-0 small">
           <dt class="col-4 mt-2">Статус</dt>
           <dd class="col-8 mb-1">{{ field_select('status_id', statuses, issue.status_id) }}</dd>
+          <dt class="col-4 mt-2">Приоритет</dt>
+          <dd class="col-8 mb-1">
+            <form method="post" action="{{ url_for('issues.set_field', issue_id=issue.id) }}">
+              <input type="hidden" name="field" value="priority">
+              <select name="value" class="form-select form-select-sm" onchange="this.form.submit()">
+                {% for value, label in priorities.items() %}
+                  <option value="{{ value }}" {{ 'selected' if issue.priority == value }}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </form>
+          </dd>
           <dt class="col-4">Автор</dt>
           <dd class="col-8 mb-1"><span class="d-inline-flex align-items-center gap-1">{{ avatar(issue.reporter, 22) }} {{ issue.reporter.name }}</span></dd>
           <dt class="col-4 mt-2">Исполнитель</dt>

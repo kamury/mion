@@ -6,7 +6,7 @@ from flask_login import current_user, login_required
 
 from ..extensions import db
 from ..history import add_event
-from ..models import Board, Issue, QuickFilter, Sprint, Status
+from ..models import PRIORITY_ORDER, Board, Issue, QuickFilter, Sprint, Status
 from ..sql_runner import run_ids_query
 
 bp = Blueprint('boards', __name__, url_prefix='/boards')
@@ -151,7 +151,9 @@ def view(board_id):
     backlog = {'sprint': None, 'cells': {s.id: [] for s in statuses}}
 
     lane_by_sprint = {lane['sprint'].id: lane for lane in lanes}
-    for issue in sorted(issues, key=lambda i: i.id):
+    # В ячейках сначала более приоритетные, при равенстве — по номеру
+    for issue in sorted(issues,
+                        key=lambda i: (PRIORITY_ORDER.get(i.priority, 99), i.id)):
         lane = (lane_by_sprint.get(issue.sprint_id)
                 if issue.sprint_id in visible_sprint_ids else None) or backlog
         if issue.status_id in lane['cells']:

@@ -12,6 +12,17 @@ ISSUE_TYPES = {
     'bug': 'Bug',
 }
 
+PRIORITIES = {
+    'critical': 'Critical',
+    'highest': 'Highest',
+    'high': 'High',
+    'normal': 'Normal',
+    'low': 'Low',
+}
+
+# Порядок сортировки: чем меньше, тем важнее
+PRIORITY_ORDER = {p: i for i, p in enumerate(PRIORITIES)}
+
 # Какой тип может быть родителем для данного типа
 PARENT_TYPE = {
     'epic': None,
@@ -98,6 +109,8 @@ class Issue(db.Model):
 
     title = db.Column(db.String(300), nullable=False)
     summary = db.Column(db.Text, default='')  # HTML из WYSIWYG
+    priority = db.Column(db.String(20), default='normal',
+                         server_default='normal', nullable=False)
 
     reporter_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     assignee_id = db.Column(db.Integer, db.ForeignKey('users.id'))
@@ -136,6 +149,10 @@ class Issue(db.Model):
     @property
     def type_label(self):
         return ISSUE_TYPES.get(self.type, self.type)
+
+    @property
+    def priority_label(self):
+        return PRIORITIES.get(self.priority, self.priority)
 
 
 class Comment(db.Model):

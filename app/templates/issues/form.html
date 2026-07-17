@@ -17,6 +17,7 @@
   'component_id': f.get('component_id', issue.component_id if issue else '') or '',
   'sprint_id': f.get('sprint_id', issue.sprint_id if issue else '') or '',
   'status_id': f.get('status_id', issue.status_id if issue else '') or '',
+  'priority': f.get('priority', issue.priority if issue else 'normal'),
 } %}
 
 <h4 class="mb-3">{{ 'Редактирование задачи #' ~ issue.id if issue else 'Новая задача' }}</h4>
@@ -74,6 +75,14 @@
             <select name="status_id" class="form-select">
               {% for s in statuses %}
                 <option value="{{ s.id }}" {{ 'selected' if cur.status_id|string == s.id|string }}>{{ s.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Приоритет</label>
+            <select name="priority" class="form-select">
+              {% for value, label in priorities.items() %}
+                <option value="{{ value }}" {{ 'selected' if cur.priority == value }}>{{ label }}</option>
               {% endfor %}
             </select>
           </div>
