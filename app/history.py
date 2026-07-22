@@ -19,6 +19,8 @@ FIELD_LABELS = {
     'component_id': 'Компонент',
     'sprint_id': 'Спринт',
     'status_id': 'Статус',
+    'start_date': 'Дата начала',
+    'end_date': 'Дата конца',
 }
 
 _FK_MODELS = {
@@ -51,6 +53,8 @@ def _display(field, value):
         return models.ISSUE_TYPES.get(value, str(value))
     if field == 'priority':
         return models.PRIORITIES.get(value, str(value))
+    if field in ('start_date', 'end_date'):
+        return value.strftime('%d.%m.%Y')
     if field in _FK_MODELS:
         model_name, attr = _FK_MODELS[field]
         obj = db.session.get(getattr(models, model_name), value)

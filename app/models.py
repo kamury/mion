@@ -123,6 +123,10 @@ class Issue(db.Model):
     sprint_id = db.Column(db.Integer, db.ForeignKey('sprints.id'))
     status_id = db.Column(db.Integer, db.ForeignKey('statuses.id'), nullable=False)
 
+    # Даты для роадмапа (используются у эпиков)
+    start_date = db.Column(db.Date)
+    end_date = db.Column(db.Date)
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow,
                            onupdate=datetime.utcnow, nullable=False)

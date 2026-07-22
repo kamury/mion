@@ -9,6 +9,7 @@ from flask_login import current_user, login_required
 
 from ..excel import build_export, import_rows, read_rows
 from ..extensions import db
+from ..filters import multi_condition
 from ..files import save_upload
 from ..history import add_event, record_update, snapshot
 from ..models import (ISSUE_TYPES, PARENT_TYPE, PRIORITIES, Attachment,
@@ -129,9 +130,9 @@ def _filtered_issues(args):
                           ('project_id', Issue.project_id),
                           ('team_id', Issue.team_id),
                           ('component_id', Issue.component_id)):
-        ids = [int(v) for v in args.getlist(field) if v]
-        if ids:
-            query = query.filter(column.in_(ids))
+        cond = multi_condition(column, args.getlist(field))
+        if cond is not None:
+            query = query.filter(cond)
     if args.get('q'):
         query = query.filter(Issue.title.ilike(f"%{args['q']}%"))
     return query.order_by(Issue.id.desc()).all()
@@ -292,6 +293,10 @@ def new():
     # «Добавить связанную задачу» со страницы эпика/фичи: предзаполняем
     # тип, родителя и поля из родителя.
     form_data = None
+    # предзаполнение типа из ссылки (например «+ Создать эпик» на роадмапе)
+    arg_type = request.args.get('type')
+    if arg_type in ISSUE_TYPES:
+        form_data = {'type': arg_type}
     raw_parent = request.args.get('parent_id', '')
     if raw_parent.isdigit():
         parent = db.session.get(Issue, int(raw_parent))

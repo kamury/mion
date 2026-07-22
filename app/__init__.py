@@ -27,12 +27,14 @@ def create_app():
     from .auth.routes import bp as auth_bp
     from .issues.routes import bp as issues_bp
     from .boards.routes import bp as boards_bp
+    from .roadmap.routes import bp as roadmap_bp
     from .admin.routes import bp as admin_bp
     from .files import bp as files_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(issues_bp)
     app.register_blueprint(boards_bp)
+    app.register_blueprint(roadmap_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(files_bp)
 

@@ -38,6 +38,7 @@
   </div>
   <div class="col-auto">
     <select name="assignee_id" multiple class="form-select form-select-sm filter-select" data-placeholder="Любой исполнитель">
+      <option value="__none__" {{ 'selected' if '__none__' in args.getlist('assignee_id') }}>— не задано —</option>
       {% for u in users %}
         <option value="{{ u.id }}" {{ 'selected' if u.id|string in args.getlist('assignee_id') }}>{{ u.name }}</option>
       {% endfor %}
@@ -45,6 +46,7 @@
   </div>
   <div class="col-auto">
     <select name="project_id" multiple class="form-select form-select-sm filter-select" data-placeholder="Любой проект">
+      <option value="__none__" {{ 'selected' if '__none__' in args.getlist('project_id') }}>— не задано —</option>
       {% for p in projects %}
         <option value="{{ p.id }}" {{ 'selected' if p.id|string in args.getlist('project_id') }}>{{ p.name }}</option>
       {% endfor %}
@@ -52,6 +54,7 @@
   </div>
   <div class="col-auto">
     <select name="team_id" multiple class="form-select form-select-sm filter-select" data-placeholder="Любая команда">
+      <option value="__none__" {{ 'selected' if '__none__' in args.getlist('team_id') }}>— не задано —</option>
       {% for t in teams %}
         <option value="{{ t.id }}" {{ 'selected' if t.id|string in args.getlist('team_id') }}>{{ t.name }}</option>
       {% endfor %}
@@ -59,6 +62,7 @@
   </div>
   <div class="col-auto">
     <select name="component_id" multiple class="form-select form-select-sm filter-select" data-placeholder="Любой компонент">
+      <option value="__none__" {{ 'selected' if '__none__' in args.getlist('component_id') }}>— не задано —</option>
       {% for c in components %}
         <option value="{{ c.id }}" {{ 'selected' if c.id|string in args.getlist('component_id') }}>{{ c.name }}</option>
       {% endfor %}

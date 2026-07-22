@@ -103,3 +103,99 @@
 .issue-card .card-body a { color: inherit; }
 .sortable-ghost { opacity: .4; }
 .sortable-drag { transform: rotate(2deg); }
+
+/* ---------- Роадмап ---------- */
+.rm-info-title { font-size: .9rem; }
+.rm-date { max-width: 140px; }
+.rm-people { display: flex; flex-wrap: wrap; gap: 4px; }
+.rm-breakdown { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.rm-status { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+
+/* Таймлайн: шкала месяцев + дорожки с полосами эпиков */
+.rm-gantt { position: relative; }
+.rm-scale { display: flex; border-bottom: 2px solid #dee2e6; margin-bottom: 4px; }
+.rm-month {
+  flex: 0 0 auto;
+  font-size: .72rem;
+  text-transform: uppercase;
+  color: #6c757d;
+  text-align: center;
+  padding: 4px 0;
+  border-left: 1px solid #eceef0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.rm-month:first-child { border-left: none; }
+
+.rm-track {
+  position: relative;
+  height: 40px;
+  border-bottom: 1px solid #f3f4f6;
+}
+.rm-gridline {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid #f1f2f4;
+}
+.rm-bar {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 28px;
+  min-width: 22px;
+  background: #cbf1f5;
+  border: 1px solid #a6e3e9;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  color: #364f6b;
+}
+.rm-bar:hover { background: #a6e3e9; }
+/* Активный эпик (наведение/редактирование) поднимаем над остальными
+   полосами и карточками — иначе transform на .rm-bar создаёт свой
+   контекст наложения, и нижние полосы перекрывают карточку. */
+.rm-bar:hover,
+.rm-bar.editing { z-index: 50; }
+.rm-bar-label {
+  font-size: .8rem;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  cursor: pointer;
+  flex: 1 1 auto;
+}
+
+/* Всплывающая карточка эпика (по наведению / при редактировании — «пин») */
+.rm-card {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 320px;
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .16);
+  padding: 10px 12px;
+  cursor: default;
+  z-index: 30;
+}
+.rm-bar-right .rm-card { left: auto; right: 0; }
+.rm-bar:hover .rm-card,
+.rm-bar.editing .rm-card { display: block; }
+.rm-bar.editing { outline: 2px solid #364f6b; }
+
+/* Список эпиков без дат */
+.rm-nodates {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+.rm-nodate-card {
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.rm-nodate-card .rm-info-title { margin-bottom: 2px; }
