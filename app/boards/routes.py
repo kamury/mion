@@ -1,3 +1,4 @@
+from collections import Counter, defaultdict
 from datetime import datetime
 
 from flask import (Blueprint, abort, flash, redirect, render_template,
@@ -14,6 +15,31 @@ bp = Blueprint('boards', __name__, url_prefix='/boards')
 
 def _parse_date(value):
     return datetime.strptime(value, '%Y-%m-%d').date() if value else None
+
+
+def _cluster_by_parent(issues):
+    """Упорядочивает задачи в ячейке так, чтобы задачи одного родителя (фичи)
+    шли подряд — тогда на доске видно, что это группа, а не независимые
+    карточки. Группы и элементы внутри идут по приоритету (важные выше)."""
+    def prio(i):
+        return PRIORITY_ORDER.get(i.priority, 99)
+
+    groups = defaultdict(list)   # parent_id -> задачи этого родителя в ячейке
+    singles = []                 # задачи без родителя — каждая сама по себе
+    for issue in issues:
+        if issue.parent_id:
+            groups[issue.parent_id].append(issue)
+        else:
+            singles.append(issue)
+
+    blocks = []  # (лучший приоритет в группе, id первой, [задачи])
+    for members in groups.values():
+        members.sort(key=lambda i: (prio(i), i.id))
+        blocks.append((prio(members[0]), members[0].id, members))
+    for single in singles:
+        blocks.append((prio(single), single.id, [single]))
+    blocks.sort(key=lambda b: (b[0], b[1]))
+    return [issue for _, _, members in blocks for issue in members]
 
 
 @bp.route('/')
@@ -151,14 +177,25 @@ def view(board_id):
     backlog = {'sprint': None, 'cells': {s.id: [] for s in statuses}}
 
     lane_by_sprint = {lane['sprint'].id: lane for lane in lanes}
-    # В ячейках сначала более приоритетные, при равенстве — по номеру
-    for issue in sorted(issues,
-                        key=lambda i: (PRIORITY_ORDER.get(i.priority, 99), i.id)):
+    for issue in issues:
         lane = (lane_by_sprint.get(issue.sprint_id)
                 if issue.sprint_id in visible_sprint_ids else None) or backlog
         if issue.status_id in lane['cells']:
             lane['cells'][issue.status_id].append(issue)
     lanes.append(backlog)
+
+    # В каждой ячейке группируем задачи по родителю (фиче), группы — по приоритету
+    for lane in lanes:
+        for status_id, cell in lane['cells'].items():
+            lane['cells'][status_id] = _cluster_by_parent(cell)
+
+    # Данные для связей на карточках:
+    #  child_count — сколько подзадач родителя присутствует на самой доске;
+    #  parents — карта id->родитель (в т.ч. если родителя нет на доске) для «хлебной крошки».
+    child_count = Counter(i.parent_id for i in issues if i.parent_id)
+    parent_ids = {i.parent_id for i in issues if i.parent_id}
+    parents = ({p.id: p for p in Issue.query.filter(Issue.id.in_(parent_ids)).all()}
+               if parent_ids else {})
 
     # Незакрытые задачи каждого спринта (для диалога закрытия) — независимо
     # от запроса доски, чтобы цифры не расходились с тем, что видно на доске
@@ -174,6 +211,7 @@ def view(board_id):
                            all_open_sprints=all_open_sprints,
                            unfinished_by_sprint=unfinished_by_sprint,
                            active_filter_ids=active_filter_ids, error=error,
+                           child_count=child_count, parents=parents,
                            issue_count=len(issues))
 
 

@@ -101,6 +101,16 @@
 }
 .issue-card:active { cursor: grabbing; }
 .issue-card .card-body a { color: inherit; }
+/* Карточка-родитель (фича/эпик с подзадачами на доске) — чуть выделяем */
+.issue-parent { background: #fbfcfe; }
+/* «Хлебная крошка» на карточке: к какому родителю относится задача */
+.card-parent {
+  font-size: .72rem;
+  color: #6c757d !important;
+  max-width: 100%;
+  margin-bottom: 2px;
+}
+.card-parent:hover { color: #364f6b !important; }
 .sortable-ghost { opacity: .4; }
 .sortable-drag { transform: rotate(2deg); }
 

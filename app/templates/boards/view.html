@@ -71,8 +71,21 @@
              data-status-id="{{ s.id }}"
              data-sprint-id="{{ lane.sprint.id if lane.sprint else '' }}">
           {% for issue in lane.cells[s.id] %}
-          <div class="issue-card card" data-issue-id="{{ issue.id }}">
+          {# «Семья» для цветной метки: у родителя — его id, у ребёнка — id родителя,
+             чтобы фича и её задачи имели одинаковую цветную полоску слева. #}
+          {% set family = issue.id if issue.id in child_count else issue.parent_id %}
+          {% set parent = parents.get(issue.parent_id) %}
+          <div class="issue-card card{{ ' issue-parent' if issue.id in child_count }}"
+               data-issue-id="{{ issue.id }}"
+               {% if family %}style="border-left: 4px solid hsl({{ (family * 47) % 360 }}, 55%, 62%);"{% endif %}>
             <div class="card-body p-2">
+              {% if parent %}
+                <a class="card-parent d-block text-truncate text-decoration-none"
+                   href="{{ url_for('issues.view', issue_id=parent.id) }}"
+                   title="{{ parent.type_label }} #{{ parent.id }} — {{ parent.title }}">
+                  ↳ {{ parent.type_label }} #{{ parent.id }} {{ parent.title }}
+                </a>
+              {% endif %}
               <div class="d-flex justify-content-between align-items-start">
                 <span class="d-inline-flex align-items-center gap-1">
                   {{ type_badge(issue) }} {{ priority_arrow(issue) }}
@@ -83,6 +96,10 @@
                  href="{{ url_for('issues.view', issue_id=issue.id) }}">
                 <span class="text-muted">#{{ issue.id }}</span> {{ issue.title }}
               </a>
+              {% if issue.id in child_count %}
+                <span class="badge rounded-pill text-bg-light border mt-1"
+                      title="Подзадач на доске: {{ child_count[issue.id] }}">↳ {{ child_count[issue.id] }}</span>
+              {% endif %}
               {% if issue.sprint and issue.sprint.is_closed %}
                 <span class="badge text-bg-warning mt-1">спринт закрыт: {{ issue.sprint.name }}</span>
               {% endif %}
