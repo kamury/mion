@@ -1,9 +1,10 @@
 from collections import Counter, defaultdict
-from datetime import datetime
+from datetime import datetime, time, timedelta
 
 from flask import (Blueprint, abort, flash, redirect, render_template,
                    request, url_for)
 from flask_login import current_user, login_required
+from sqlalchemy import or_
 
 from ..extensions import db
 from ..history import add_event
@@ -189,11 +190,43 @@ def view(board_id):
         for status_id, cell in lane['cells'].items():
             lane['cells'][status_id] = _cluster_by_parent(cell)
 
+    # Закрытые спринты — показываем по переключателю, свёрнутыми, над текущими.
+    # Опционально фильтруем по дате закрытия (период).
+    show_closed = request.args.get('show_closed') == '1'
+    closed_from = _parse_date(request.args.get('closed_from'))
+    closed_to = _parse_date(request.args.get('closed_to'))
+    closed_lanes = []
+    closed_issues = []
+    if show_closed:
+        cq = Sprint.query.filter(
+            Sprint.is_closed.is_(True),
+            or_(Sprint.board_id.is_(None), Sprint.board_id == board.id))
+        if closed_from:
+            cq = cq.filter(Sprint.closed_at >= datetime.combine(closed_from, time.min))
+        if closed_to:
+            cq = cq.filter(Sprint.closed_at < datetime.combine(closed_to, time.min)
+                           + timedelta(days=1))
+        closed_sprints = cq.order_by(Sprint.closed_at.desc().nullslast(),
+                                     Sprint.end_date.desc().nullslast(),
+                                     Sprint.id.desc()).all()
+        for sprint in closed_sprints:
+            sp_issues = Issue.query.filter_by(sprint_id=sprint.id).all()
+            closed_issues.extend(sp_issues)
+            cells = {s.id: [] for s in statuses}
+            for issue in sp_issues:
+                if issue.status_id in cells:
+                    cells[issue.status_id].append(issue)
+            for sid in cells:
+                cells[sid] = _cluster_by_parent(cells[sid])
+            closed_lanes.append({'sprint': sprint, 'cells': cells,
+                                 'total': len(sp_issues)})
+
     # Данные для связей на карточках:
     #  child_count — сколько подзадач родителя присутствует на самой доске;
     #  parents — карта id->родитель (в т.ч. если родителя нет на доске) для «хлебной крошки».
-    child_count = Counter(i.parent_id for i in issues if i.parent_id)
-    parent_ids = {i.parent_id for i in issues if i.parent_id}
+    shown = issues + closed_issues
+    child_count = Counter(i.parent_id for i in shown if i.parent_id)
+    parent_ids = {i.parent_id for i in shown if i.parent_id}
     parents = ({p.id: p for p in Issue.query.filter(Issue.id.in_(parent_ids)).all()}
                if parent_ids else {})
 
@@ -212,6 +245,9 @@ def view(board_id):
                            unfinished_by_sprint=unfinished_by_sprint,
                            active_filter_ids=active_filter_ids, error=error,
                            child_count=child_count, parents=parents,
+                           closed_lanes=closed_lanes, show_closed=show_closed,
+                           closed_from=request.args.get('closed_from', ''),
+                           closed_to=request.args.get('closed_to', ''),
                            issue_count=len(issues))
 
 
@@ -274,7 +310,13 @@ def sprint_close(sprint_id):
                   old_value=sprint.name,
                   new_value=target.name if target else None)
 
+    # Ретроспектива (все поля необязательные)
+    sprint.retro_good = request.form.get('retro_good', '').strip() or None
+    sprint.retro_bad = request.form.get('retro_bad', '').strip() or None
+    sprint.retro_learned = request.form.get('retro_learned', '').strip() or None
+
     sprint.is_closed = True
+    sprint.closed_at = datetime.utcnow()
     db.session.commit()
 
     moved_to = f'в «{target.name}»' if target else 'в Backlog'

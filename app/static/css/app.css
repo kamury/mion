@@ -80,6 +80,24 @@
 }
 .board-col-header.board-col-done { background: #d1e7dd; color: #0f5132; }
 
+/* Закрытые спринты на доске (свёрнутые) */
+.lane-closed-header { cursor: pointer; user-select: none; }
+.lane-closed .collapse-caret { transition: transform .15s; display: inline-block; }
+.lane-closed-header[aria-expanded="true"] .collapse-caret { transform: rotate(90deg); }
+.board-cell.readonly .issue-card { cursor: default; }
+
+.retro-box {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin: 8px 0;
+  font-size: .875rem;
+}
+.retro-item { margin-bottom: 6px; }
+.retro-item:last-child { margin-bottom: 0; }
+.retro-text { white-space: pre-wrap; color: #495057; }
+
 .lane { margin-top: 12px; }
 .lane-header {
   padding: 6px 4px;

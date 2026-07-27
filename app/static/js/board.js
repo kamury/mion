@@ -1,6 +1,6 @@
 /* Доска: drag&drop карточек между статусами (колонки) и спринтами (свимлейны). */
 
-document.querySelectorAll('.board-cell').forEach((cell) => {
+document.querySelectorAll('.board-cell:not(.readonly)').forEach((cell) => {
   new Sortable(cell, {
     group: 'board',
     animation: 150,

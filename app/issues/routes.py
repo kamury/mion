@@ -1,6 +1,7 @@
 import os
 import re
 import time
+from datetime import datetime
 from uuid import uuid4
 
 from flask import (Blueprint, abort, current_app, flash, jsonify, redirect,
@@ -379,6 +380,26 @@ def comment(issue_id):
     add_event(issue, current_user, 'commented')
     db.session.commit()
     return redirect(url_for('issues.view', issue_id=issue.id) + '#comments')
+
+
+@bp.post('/<int:issue_id>/comment/<int:comment_id>/edit')
+@login_required
+def comment_edit(issue_id, comment_id):
+    """Редактирование своего комментария (только автор)."""
+    comment = db.session.get(Comment, comment_id) or abort(404)
+    if comment.issue_id != issue_id:
+        abort(404)
+    if comment.author_id != current_user.id:
+        abort(403)
+    body = normalize_spaces(request.form.get('body', '').strip())
+    anchor = url_for('issues.view', issue_id=issue_id) + '#comments'
+    if not body:
+        flash('Комментарий не может быть пустым.', 'danger')
+        return redirect(anchor)
+    comment.body = body
+    comment.edited_at = datetime.utcnow()
+    db.session.commit()
+    return redirect(anchor)
 
 
 @bp.post('/<int:issue_id>/attach')

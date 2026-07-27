@@ -1,6 +1,44 @@
 {% extends 'base.html' %}
 {% from '_helpers.html' import avatar, type_badge, status_badge, priority_arrow %}
 {% block title %}{{ board.name }} — Трекер{% endblock %}
+
+{# Карточка задачи на доске: цветная «семейная» полоса, крошка к родителю,
+   счётчик подзадач. Используется и для открытых, и для закрытых спринтов. #}
+{% macro issue_card(issue, child_count, parents) %}
+  {% set family = issue.id if issue.id in child_count else issue.parent_id %}
+  {% set parent = parents.get(issue.parent_id) %}
+  <div class="issue-card card{{ ' issue-parent' if issue.id in child_count }}"
+       data-issue-id="{{ issue.id }}"
+       {% if family %}style="border-left: 4px solid hsl({{ (family * 47) % 360 }}, 55%, 62%);"{% endif %}>
+    <div class="card-body p-2">
+      {% if parent %}
+        <a class="card-parent d-block text-truncate text-decoration-none"
+           href="{{ url_for('issues.view', issue_id=parent.id) }}"
+           title="{{ parent.type_label }} #{{ parent.id }} — {{ parent.title }}">
+          ↳ {{ parent.type_label }} #{{ parent.id }} {{ parent.title }}
+        </a>
+      {% endif %}
+      <div class="d-flex justify-content-between align-items-start">
+        <span class="d-inline-flex align-items-center gap-1">
+          {{ type_badge(issue) }} {{ priority_arrow(issue) }}
+        </span>
+        {% if issue.assignee %}{{ avatar(issue.assignee, 22) }}{% endif %}
+      </div>
+      <a class="small text-decoration-none d-block mt-1"
+         href="{{ url_for('issues.view', issue_id=issue.id) }}">
+        <span class="text-muted">#{{ issue.id }}</span> {{ issue.title }}
+      </a>
+      {% if issue.id in child_count %}
+        <span class="badge rounded-pill text-bg-light border mt-1"
+              title="Подзадач на доске: {{ child_count[issue.id] }}">↳ {{ child_count[issue.id] }}</span>
+      {% endif %}
+      {% if issue.sprint and issue.sprint.is_closed %}
+        <span class="badge text-bg-warning mt-1">спринт закрыт: {{ issue.sprint.name }}</span>
+      {% endif %}
+    </div>
+  </div>
+{% endmacro %}
+
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
   <h4 class="mb-0">{{ board.name }} <span class="text-muted fs-6">({{ issue_count }} задач)</span></h4>
@@ -31,6 +69,27 @@
 </div>
 {% endif %}
 
+{# Переключатель показа закрытых спринтов + фильтр по дате закрытия #}
+<form method="get" class="d-flex align-items-center gap-2 flex-wrap mb-3">
+  {% for fid in active_filter_ids %}<input type="hidden" name="filter" value="{{ fid }}">{% endfor %}
+  <div class="form-check form-switch mb-0">
+    <input class="form-check-input" type="checkbox" role="switch" id="show-closed"
+           name="show_closed" value="1" {{ 'checked' if show_closed }} onchange="this.form.submit()">
+    <label class="form-check-label" for="show-closed">Показать закрытые спринты</label>
+  </div>
+  {% if show_closed %}
+    <span class="text-muted small ms-2">за период:</span>
+    <input type="date" name="closed_from" class="form-control form-control-sm" style="width: auto" value="{{ closed_from }}">
+    <span class="text-muted">—</span>
+    <input type="date" name="closed_to" class="form-control form-control-sm" style="width: auto" value="{{ closed_to }}">
+    <button class="btn btn-outline-secondary btn-sm">Применить</button>
+    {% if closed_from or closed_to %}
+      <a class="btn btn-link btn-sm text-decoration-none"
+         href="{{ url_for('boards.view', board_id=board.id, show_closed=1, filter=active_filter_ids) }}">сбросить период</a>
+    {% endif %}
+  {% endif %}
+</form>
+
 {% if error %}
   <div class="alert alert-danger">{{ error }}</div>
 {% endif %}
@@ -42,6 +101,56 @@
         <div class="board-col-header {{ 'board-col-done' if s.is_done }}">{{ s.name }}</div>
       {% endfor %}
     </div>
+
+    {# Закрытые спринты — свёрнутыми, перед текущими #}
+    {% if show_closed %}
+      {% if not closed_lanes %}
+        <p class="text-muted small my-2">Закрытых спринтов {{ 'за выбранный период ' if closed_from or closed_to }}нет.</p>
+      {% endif %}
+      {% for cl in closed_lanes %}
+      <div class="lane lane-closed">
+        <div class="lane-header lane-closed-header d-flex align-items-center gap-2"
+             role="button" data-bs-toggle="collapse" data-bs-target="#closed-{{ cl.sprint.id }}"
+             aria-expanded="false">
+          <span class="collapse-caret">▸</span>
+          <strong>🏁 {{ cl.sprint.name }}</strong>
+          <span class="badge rounded-pill text-bg-secondary">{{ cl.total }}</span>
+          <span class="text-muted small">
+            закрыт{% if cl.sprint.closed_at %} {{ cl.sprint.closed_at | d }}{% endif %}
+            {% if cl.sprint.start_date or cl.sprint.end_date %}
+              · {{ cl.sprint.start_date | d }} — {{ cl.sprint.end_date | d }}{% endif %}
+          </span>
+        </div>
+        <div class="collapse" id="closed-{{ cl.sprint.id }}">
+          {% if cl.sprint.has_retro %}
+          <div class="retro-box">
+            {% if cl.sprint.retro_good %}
+              <div class="retro-item"><strong>👍 Что прошло хорошо</strong>
+                <div class="retro-text">{{ cl.sprint.retro_good }}</div></div>
+            {% endif %}
+            {% if cl.sprint.retro_bad %}
+              <div class="retro-item"><strong>👎 Что прошло плохо</strong>
+                <div class="retro-text">{{ cl.sprint.retro_bad }}</div></div>
+            {% endif %}
+            {% if cl.sprint.retro_learned %}
+              <div class="retro-item"><strong>💡 Чему научились</strong>
+                <div class="retro-text">{{ cl.sprint.retro_learned }}</div></div>
+            {% endif %}
+          </div>
+          {% endif %}
+          <div class="lane-cells">
+            {% for s in statuses %}
+            <div class="board-cell readonly">
+              {% for issue in cl.cells[s.id] %}
+                {{ issue_card(issue, child_count, parents) }}
+              {% endfor %}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    {% endif %}
 
     {% for lane in lanes %}
     <div class="lane">
@@ -71,40 +180,7 @@
              data-status-id="{{ s.id }}"
              data-sprint-id="{{ lane.sprint.id if lane.sprint else '' }}">
           {% for issue in lane.cells[s.id] %}
-          {# «Семья» для цветной метки: у родителя — его id, у ребёнка — id родителя,
-             чтобы фича и её задачи имели одинаковую цветную полоску слева. #}
-          {% set family = issue.id if issue.id in child_count else issue.parent_id %}
-          {% set parent = parents.get(issue.parent_id) %}
-          <div class="issue-card card{{ ' issue-parent' if issue.id in child_count }}"
-               data-issue-id="{{ issue.id }}"
-               {% if family %}style="border-left: 4px solid hsl({{ (family * 47) % 360 }}, 55%, 62%);"{% endif %}>
-            <div class="card-body p-2">
-              {% if parent %}
-                <a class="card-parent d-block text-truncate text-decoration-none"
-                   href="{{ url_for('issues.view', issue_id=parent.id) }}"
-                   title="{{ parent.type_label }} #{{ parent.id }} — {{ parent.title }}">
-                  ↳ {{ parent.type_label }} #{{ parent.id }} {{ parent.title }}
-                </a>
-              {% endif %}
-              <div class="d-flex justify-content-between align-items-start">
-                <span class="d-inline-flex align-items-center gap-1">
-                  {{ type_badge(issue) }} {{ priority_arrow(issue) }}
-                </span>
-                {% if issue.assignee %}{{ avatar(issue.assignee, 22) }}{% endif %}
-              </div>
-              <a class="small text-decoration-none d-block mt-1"
-                 href="{{ url_for('issues.view', issue_id=issue.id) }}">
-                <span class="text-muted">#{{ issue.id }}</span> {{ issue.title }}
-              </a>
-              {% if issue.id in child_count %}
-                <span class="badge rounded-pill text-bg-light border mt-1"
-                      title="Подзадач на доске: {{ child_count[issue.id] }}">↳ {{ child_count[issue.id] }}</span>
-              {% endif %}
-              {% if issue.sprint and issue.sprint.is_closed %}
-                <span class="badge text-bg-warning mt-1">спринт закрыт: {{ issue.sprint.name }}</span>
-              {% endif %}
-            </div>
-          </div>
+            {{ issue_card(issue, child_count, parents) }}
           {% endfor %}
         </div>
         {% endfor %}
@@ -208,6 +284,21 @@
         {% else %}
           <p>Все задачи спринта закрыты. Спринт можно закрывать.</p>
         {% endif %}
+
+        <hr>
+        <p class="text-muted small mb-2">Ретроспектива (по желанию):</p>
+        <div class="mb-2">
+          <label class="form-label">Что прошло хорошо</label>
+          <textarea name="retro_good" class="form-control" rows="2"></textarea>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Что прошло плохо</label>
+          <textarea name="retro_bad" class="form-control" rows="2"></textarea>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Чему научились</label>
+          <textarea name="retro_learned" class="form-control" rows="2"></textarea>
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>

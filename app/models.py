@@ -92,12 +92,21 @@ class Sprint(db.Model):
     start_date = db.Column(db.Date)
     end_date = db.Column(db.Date)
     is_closed = db.Column(db.Boolean, default=False, nullable=False)
+    closed_at = db.Column(db.DateTime)  # когда спринт закрыли
+    # Ретроспектива — заполняется по желанию при закрытии спринта
+    retro_good = db.Column(db.Text)     # что прошло хорошо
+    retro_bad = db.Column(db.Text)      # что прошло плохо
+    retro_learned = db.Column(db.Text)  # чему научились
     # Доска, на которой спринт создан. Пустой спринт виден только на ней;
     # NULL — виден на всех досках (спринты, созданные до этого правила).
     board_id = db.Column(db.Integer, db.ForeignKey('boards.id'))
 
     board = db.relationship('Board')
     issues = db.relationship('Issue', backref='sprint')
+
+    @property
+    def has_retro(self):
+        return bool(self.retro_good or self.retro_bad or self.retro_learned)
 
 
 class Issue(db.Model):
@@ -167,6 +176,7 @@ class Comment(db.Model):
     author_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     body = db.Column(db.Text, nullable=False)  # HTML из WYSIWYG
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    edited_at = db.Column(db.DateTime)  # когда автор отредактировал (если менял)
 
     author = db.relationship('User')
     attachments = db.relationship('Attachment', backref='comment',

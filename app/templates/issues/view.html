@@ -86,12 +86,28 @@
         <div id="comments">
           <h6>Комментарии ({{ issue.comments | length }})</h6>
           {% for c in issue.comments %}
-            <div class="d-flex gap-2 mb-3">
+            <div class="d-flex gap-2 mb-3" id="comment-{{ c.id }}">
               <div>{{ avatar(c.author, 36) }}</div>
               <div class="flex-grow-1">
-                <div><strong>{{ c.author.name }}</strong>
-                  <span class="text-muted small">{{ c.created_at | dt }}</span></div>
-                <div class="rendered-html">{{ c.body | safe }}</div>
+                <div class="d-flex align-items-center gap-2">
+                  <strong>{{ c.author.name }}</strong>
+                  <span class="text-muted small">{{ c.created_at | dt }}{% if c.edited_at %} · изменено {{ c.edited_at | dt }}{% endif %}</span>
+                  {% if c.author_id == current_user.id %}
+                    <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none comment-edit-btn"
+                            data-comment="{{ c.id }}">изменить</button>
+                  {% endif %}
+                </div>
+                <div class="rendered-html comment-body" id="comment-body-{{ c.id }}">{{ c.body | safe }}</div>
+                {% if c.author_id == current_user.id %}
+                  <form method="post" class="comment-edit-form d-none mt-2" id="comment-form-{{ c.id }}"
+                        action="{{ url_for('issues.comment_edit', issue_id=issue.id, comment_id=c.id) }}">
+                    <textarea name="body" id="comment-edit-input-{{ c.id }}" hidden>{{ c.body }}</textarea>
+                    <div id="comment-edit-editor-{{ c.id }}" class="bg-white mb-2"></div>
+                    <button class="btn btn-primary btn-sm">Сохранить</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm comment-edit-cancel"
+                            data-comment="{{ c.id }}">Отмена</button>
+                  </form>
+                {% endif %}
                 {% if c.attachments %}
                   <div class="mt-1">
                     {% for a in c.attachments %}
@@ -231,5 +247,28 @@
 {% block scripts %}
 <script>
   initEditor('#comment-editor', '#comment-input');
+
+  // Редактирование своего комментария: показать форму и лениво поднять редактор.
+  var commentEditors = {};
+  document.querySelectorAll('.comment-edit-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var id = btn.dataset.comment;
+      document.getElementById('comment-body-' + id).classList.add('d-none');
+      document.getElementById('comment-form-' + id).classList.remove('d-none');
+      btn.classList.add('d-none');
+      if (!commentEditors[id]) {
+        commentEditors[id] = initEditor('#comment-edit-editor-' + id,
+                                        '#comment-edit-input-' + id);
+      }
+    });
+  });
+  document.querySelectorAll('.comment-edit-cancel').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var id = btn.dataset.comment;
+      document.getElementById('comment-form-' + id).classList.add('d-none');
+      document.getElementById('comment-body-' + id).classList.remove('d-none');
+      document.querySelector('.comment-edit-btn[data-comment="' + id + '"]').classList.remove('d-none');
+    });
+  });
 </script>
 {% endblock %}
