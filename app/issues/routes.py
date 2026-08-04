@@ -7,6 +7,7 @@ from uuid import uuid4
 from flask import (Blueprint, abort, current_app, flash, jsonify, redirect,
                    render_template, request, send_file, url_for)
 from flask_login import current_user, login_required
+from sqlalchemy import and_, or_
 
 from ..excel import build_export, import_rows, read_rows
 from ..extensions import db
@@ -14,8 +15,8 @@ from ..filters import multi_condition
 from ..files import save_upload
 from ..history import add_event, record_update, snapshot
 from ..models import (ISSUE_TYPES, PARENT_TYPE, PRIORITIES, Attachment,
-                      Comment, Component, Customer, Issue, Project, Sprint,
-                      Status, Team, User)
+                      Comment, Component, Customer, Issue, IssueLink, Project,
+                      SavedFilter, Sprint, Status, Team, User)
 from ..sql_runner import run_ids_query
 from ..textutils import normalize_spaces
 
@@ -143,8 +144,55 @@ def _filtered_issues(args):
 @login_required
 def index():
     issues = _filtered_issues(request.args)
+    saved_filters = (SavedFilter.query.filter_by(user_id=current_user.id)
+                     .order_by(SavedFilter.name).all())
     return render_template('issues/index.html', issues=issues, args=request.args,
-                           **_form_choices())
+                           saved_filters=saved_filters, **_form_choices())
+
+
+# Поля фильтра списка задач — только их сохраняем в личный фильтр
+FILTER_FIELDS = ('type', 'priority', 'status_id', 'assignee_id', 'project_id',
+                 'team_id', 'component_id', 'q')
+
+
+def _clean_filter_query(raw):
+    """Оставляет в query-строке только реальные поля фильтра с непустыми значениями."""
+    from werkzeug.datastructures import MultiDict
+    from urllib.parse import parse_qsl, urlencode
+    pairs = [(k, v) for k, v in parse_qsl(raw, keep_blank_values=False)
+             if k in FILTER_FIELDS and v.strip()]
+    return urlencode(pairs)
+
+
+@bp.post('/filters/save')
+@login_required
+def filter_save():
+    name = request.form.get('name', '').strip()
+    query = _clean_filter_query(request.form.get('query', ''))
+    if not name:
+        flash('Укажите название фильтра.', 'danger')
+        return redirect(url_for('issues.index') + ('?' + query if query else ''))
+    existing = SavedFilter.query.filter_by(user_id=current_user.id, name=name).first()
+    if existing:
+        existing.params = query
+    else:
+        db.session.add(SavedFilter(user_id=current_user.id, name=name, params=query))
+    db.session.commit()
+    flash(f'Фильтр «{name}» сохранён.', 'success')
+    # сразу применяем сохранённую выборку
+    return redirect(url_for('issues.index') + ('?' + query if query else ''))
+
+
+@bp.post('/filters/<int:filter_id>/delete')
+@login_required
+def filter_delete(filter_id):
+    sf = db.session.get(SavedFilter, filter_id) or abort(404)
+    if sf.user_id != current_user.id:
+        abort(403)
+    db.session.delete(sf)
+    db.session.commit()
+    flash('Фильтр удалён.', 'success')
+    return redirect(request.referrer or url_for('issues.index'))
 
 
 @bp.route('/export')
@@ -319,11 +367,96 @@ def new():
                            parent_options=_parent_options(), **_form_choices())
 
 
+# Как показываем связи задачи (kind -> подпись)
+LINK_LABELS = {'related': 'related', 'blocks': 'blocks',
+               'blocked_by': 'is blocked by'}
+
+
+def _issue_links(issue):
+    """Список связей задачи для отображения: {id, kind, label, other}."""
+    result = []
+    for link in issue.links_out:          # issue — источник
+        if link.link_type == 'related':
+            kind = 'related'
+        else:
+            kind = 'blocks'               # issue блокирует target
+        result.append({'id': link.id, 'kind': kind, 'label': LINK_LABELS[kind],
+                       'other': link.target})
+    for link in issue.links_in:           # issue — цель
+        if link.link_type == 'related':
+            kind = 'related'
+        else:
+            kind = 'blocked_by'           # source блокирует issue
+        result.append({'id': link.id, 'kind': kind, 'label': LINK_LABELS[kind],
+                       'other': link.source})
+    return result
+
+
 @bp.route('/<int:issue_id>')
 @login_required
 def view(issue_id):
     issue = db.session.get(Issue, issue_id) or abort(404)
-    return render_template('issues/view.html', issue=issue, **_form_choices())
+    link_options = (Issue.query.filter(Issue.id != issue.id)
+                    .order_by(Issue.id.desc()).all())
+    return render_template('issues/view.html', issue=issue,
+                           links=_issue_links(issue), link_options=link_options,
+                           **_form_choices())
+
+
+def _add_blocks(source_id, target_id):
+    """Добавляет ребро blocks (source блокирует target), если его ещё нет."""
+    exists = IssueLink.query.filter_by(source_id=source_id, target_id=target_id,
+                                       link_type='blocks').first()
+    if not exists:
+        db.session.add(IssueLink(source_id=source_id, target_id=target_id,
+                                 link_type='blocks'))
+
+
+@bp.post('/<int:issue_id>/link')
+@login_required
+def link_add(issue_id):
+    issue = db.session.get(Issue, issue_id) or abort(404)
+    anchor = url_for('issues.view', issue_id=issue.id) + '#links'
+    ui_type = request.form.get('link_type')
+    raw_target = request.form.get('target_id', '')
+    if not raw_target.isdigit() or int(raw_target) == issue.id:
+        flash('Выберите другую задачу для связи.', 'danger')
+        return redirect(anchor)
+    target = db.session.get(Issue, int(raw_target))
+    if not target:
+        flash('Задача не найдена.', 'danger')
+        return redirect(anchor)
+
+    if ui_type == 'related':
+        exists = IssueLink.query.filter(
+            IssueLink.link_type == 'related',
+            or_(and_(IssueLink.source_id == issue.id, IssueLink.target_id == target.id),
+                and_(IssueLink.source_id == target.id, IssueLink.target_id == issue.id))
+        ).first()
+        if not exists:
+            db.session.add(IssueLink(source_id=issue.id, target_id=target.id,
+                                     link_type='related'))
+    elif ui_type == 'blocks':
+        _add_blocks(issue.id, target.id)          # issue блокирует target
+    elif ui_type == 'is_blocked_by':
+        _add_blocks(target.id, issue.id)          # target блокирует issue
+    else:
+        flash('Неизвестный тип связи.', 'danger')
+        return redirect(anchor)
+
+    db.session.commit()
+    return redirect(anchor)
+
+
+@bp.post('/<int:issue_id>/link/<int:link_id>/delete')
+@login_required
+def link_delete(issue_id, link_id):
+    link = db.session.get(IssueLink, link_id) or abort(404)
+    if issue_id not in (link.source_id, link.target_id):
+        abort(404)
+    db.session.delete(link)
+    db.session.commit()
+    return redirect(url_for('issues.view', issue_id=issue_id) + '#links')
 
 
 @bp.route('/<int:issue_id>/edit', methods=['GET', 'POST'])

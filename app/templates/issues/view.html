@@ -1,6 +1,9 @@
 {% extends 'base.html' %}
 {% from '_helpers.html' import avatar, type_badge, status_badge %}
 {% block title %}#{{ issue.id }} {{ issue.title }} — Трекер{% endblock %}
+{% block head %}
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
   <div>
@@ -79,6 +82,60 @@
             <input name="files" type="file" multiple class="form-control form-control-sm" style="max-width: 350px" required>
             <button class="btn btn-outline-primary btn-sm text-nowrap">Загрузить</button>
           </form>
+        </div>
+
+        {# ---------- Связи ---------- #}
+        <hr>
+        <div id="links">
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <h6 class="mb-0">Связи ({{ links | length }})</h6>
+            <button class="btn btn-outline-primary btn-sm py-0 px-2" type="button"
+                    id="add-link-btn" title="Добавить связь">+</button>
+          </div>
+
+          <form method="post" action="{{ url_for('issues.link_add', issue_id=issue.id) }}"
+                class="row g-2 align-items-center mb-2 d-none" id="add-link-form">
+            <div class="col-auto">
+              <select name="link_type" class="form-select form-select-sm">
+                <option value="related">related (связана с)</option>
+                <option value="is_blocked_by">is blocked by (заблокирована задачей)</option>
+                <option value="blocks">blocks (блокирует задачу)</option>
+              </select>
+            </div>
+            <div class="col-auto">
+              <select name="target_id" id="link-target" class="form-select form-select-sm" required style="min-width: 260px">
+                <option value=""></option>
+                {% for o in link_options %}
+                  <option value="{{ o.id }}">#{{ o.id }} {{ o.title }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-auto">
+              <button class="btn btn-primary btn-sm">Добавить</button>
+              <button type="button" class="btn btn-outline-secondary btn-sm" id="cancel-link">Отмена</button>
+            </div>
+          </form>
+
+          {% if links %}
+            <ul class="list-unstyled mb-0">
+              {% for l in links %}
+                <li class="mb-1 d-flex align-items-center gap-2">
+                  <span class="badge {{ 'text-bg-danger' if l.kind != 'related' else 'text-bg-secondary' }}"
+                        style="min-width: 92px">{{ l.label }}</span>
+                  {{ type_badge(l.other) }}
+                  <a class="text-decoration-none" href="{{ url_for('issues.view', issue_id=l.other.id) }}">
+                    <span class="text-muted">#{{ l.other.id }}</span> {{ l.other.title }}</a>
+                  {{ status_badge(l.other.status) }}
+                  <form method="post" class="d-inline"
+                        action="{{ url_for('issues.link_delete', issue_id=issue.id, link_id=l.id) }}">
+                    <button class="btn-close" style="font-size:.6rem" title="Удалить связь"></button>
+                  </form>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="text-muted small mb-0">Связей нет.</p>
+          {% endif %}
         </div>
 
         {# ---------- Комментарии ---------- #}
@@ -245,8 +302,30 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 <script>
   initEditor('#comment-editor', '#comment-input');
+
+  // Блок связей: показать форму по «+», поиск задачи через Tom Select.
+  (function () {
+    var addBtn = document.getElementById('add-link-btn');
+    var form = document.getElementById('add-link-form');
+    if (!addBtn || !form) return;
+    var ts = null;
+    addBtn.addEventListener('click', function () {
+      form.classList.remove('d-none');
+      addBtn.classList.add('d-none');
+      if (!ts) {
+        ts = new TomSelect('#link-target', {
+          placeholder: 'Найдите задачу по номеру или названию…',
+        });
+      }
+    });
+    document.getElementById('cancel-link').addEventListener('click', function () {
+      form.classList.add('d-none');
+      addBtn.classList.remove('d-none');
+    });
+  })();
 
   // Редактирование своего комментария: показать форму и лениво поднять редактор.
   var commentEditors = {};

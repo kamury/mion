@@ -32,6 +32,10 @@
 /* Мультиселекты в фильтре списка задач */
 .ts-wrapper.filter-select { min-width: 170px; }
 
+/* Свёрнутый список «Мои фильтры» */
+.filters-toggle .collapse-caret { transition: transform .15s; display: inline-block; }
+.filters-toggle[aria-expanded="true"] .collapse-caret { transform: rotate(90deg); }
+
 /* Приоритеты: важные выделяем цветом */
 .prio-critical { color: #c0392b; font-weight: 600; }
 .prio-highest  { color: #e17055; font-weight: 600; }
@@ -119,6 +123,8 @@
 }
 .issue-card:active { cursor: grabbing; }
 .issue-card .card-body a { color: inherit; }
+/* Значки связей на карточке: 🧱 заблокирована, ❗ блокирует другие */
+.link-flag { font-size: .85rem; line-height: 1; cursor: default; }
 /* Карточка-родитель (фича/эпик с подзадачами на доске) — чуть выделяем */
 .issue-parent { background: #fbfcfe; }
 /* «Хлебная крошка» на карточке: к какому родителю относится задача */

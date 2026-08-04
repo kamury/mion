@@ -4,7 +4,7 @@
 
 {# Карточка задачи на доске: цветная «семейная» полоса, крошка к родителю,
    счётчик подзадач. Используется и для открытых, и для закрытых спринтов. #}
-{% macro issue_card(issue, child_count, parents) %}
+{% macro issue_card(issue, child_count, parents, blocked_ids, blocker_ids) %}
   {% set family = issue.id if issue.id in child_count else issue.parent_id %}
   {% set parent = parents.get(issue.parent_id) %}
   <div class="issue-card card{{ ' issue-parent' if issue.id in child_count }}"
@@ -21,6 +21,12 @@
       <div class="d-flex justify-content-between align-items-start">
         <span class="d-inline-flex align-items-center gap-1">
           {{ type_badge(issue) }} {{ priority_arrow(issue) }}
+          {% if issue.id in blocker_ids %}
+            <span class="link-flag" title="Блокирует другие задачи">❗</span>
+          {% endif %}
+          {% if issue.id in blocked_ids %}
+            <span class="link-flag" title="Заблокирована другой задачей">🧱</span>
+          {% endif %}
         </span>
         {% if issue.assignee %}{{ avatar(issue.assignee, 22) }}{% endif %}
       </div>
@@ -142,7 +148,7 @@
             {% for s in statuses %}
             <div class="board-cell readonly">
               {% for issue in cl.cells[s.id] %}
-                {{ issue_card(issue, child_count, parents) }}
+                {{ issue_card(issue, child_count, parents, blocked_ids, blocker_ids) }}
               {% endfor %}
             </div>
             {% endfor %}
@@ -180,7 +186,7 @@
              data-status-id="{{ s.id }}"
              data-sprint-id="{{ lane.sprint.id if lane.sprint else '' }}">
           {% for issue in lane.cells[s.id] %}
-            {{ issue_card(issue, child_count, parents) }}
+            {{ issue_card(issue, child_count, parents, blocked_ids, blocker_ids) }}
           {% endfor %}
         </div>
         {% endfor %}

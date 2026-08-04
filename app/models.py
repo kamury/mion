@@ -236,3 +236,45 @@ class QuickFilter(db.Model):
     board_id = db.Column(db.Integer, db.ForeignKey('boards.id'), nullable=False)
     name = db.Column(db.String(120), nullable=False)
     query_sql = db.Column(db.Text, nullable=False)
+
+
+class SavedFilter(db.Model):
+    """Личный сохранённый фильтр списка задач (виден только автору)."""
+    __tablename__ = 'saved_filters'
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'name', name='uq_saved_filter_user_name'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    name = db.Column(db.String(120), nullable=False)
+    # query-string фильтра. Не «query» — это имя занято Model.query у Flask-SQLAlchemy.
+    params = db.Column(db.Text, nullable=False, default='')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    user = db.relationship('User')
+
+
+# Хранимые типы связей: related (симметричная) и blocks (направленная:
+# source блокирует target). «is blocked by» — это blocks со стороны target,
+# отдельного типа не нужно.
+LINK_TYPES = ('related', 'blocks')
+
+
+class IssueLink(db.Model):
+    __tablename__ = 'issue_links'
+    __table_args__ = (
+        db.UniqueConstraint('source_id', 'target_id', 'link_type',
+                            name='uq_issue_link'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    source_id = db.Column(db.Integer, db.ForeignKey('issues.id'), nullable=False)
+    target_id = db.Column(db.Integer, db.ForeignKey('issues.id'), nullable=False)
+    link_type = db.Column(db.String(20), nullable=False)  # 'related' | 'blocks'
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    source = db.relationship('Issue', foreign_keys=[source_id],
+                             backref=db.backref('links_out', cascade='all, delete-orphan'))
+    target = db.relationship('Issue', foreign_keys=[target_id],
+                             backref=db.backref('links_in', cascade='all, delete-orphan'))

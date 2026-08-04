@@ -14,7 +14,7 @@
   </div>
 </div>
 
-<form method="get" class="row g-2 mb-3">
+<form method="get" class="row g-2 mb-3" id="filter-form">
   <div class="col-auto">
     <select name="type" multiple class="form-select form-select-sm filter-select" data-placeholder="Любой тип">
       {% for value, label in issue_types.items() %}
@@ -73,12 +73,64 @@
            value="{{ args.get('q', '') }}">
   </div>
   <div class="col-auto">
-    <button class="btn btn-primary btn-sm">Фильтровать</button>
+    <button class="btn btn-primary btn-sm" title="Фильтровать" aria-label="Фильтровать">🔍</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('issues.index') }}"
+       title="Сбросить" aria-label="Сбросить">✕</a>
+    <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal"
+            data-bs-target="#save-filter-modal">Сохранить мой фильтр</button>
     <a class="btn btn-outline-secondary btn-sm"
        href="{{ url_for('issues.export', **request.args.to_dict(flat=False)) }}">Экспорт в Excel</a>
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('issues.index') }}">Сбросить</a>
   </div>
 </form>
+
+{# Личные сохранённые фильтры — свёрнутый список между фильтрами и задачами #}
+{% if saved_filters %}
+<div class="mb-3">
+  <button class="btn btn-link btn-sm text-decoration-none p-0 filters-toggle" type="button"
+          data-bs-toggle="collapse" data-bs-target="#my-filters" aria-expanded="false">
+    <span class="collapse-caret">▸</span> Мои фильтры ({{ saved_filters | length }})
+  </button>
+  <div class="collapse" id="my-filters">
+    <div class="d-flex flex-wrap gap-2 mt-2">
+      {% for f in saved_filters %}
+        <span class="badge text-bg-light border d-inline-flex align-items-center gap-1 py-2">
+          <a class="text-decoration-none" href="{{ url_for('issues.index') }}?{{ f.params }}">{{ f.name }}</a>
+          <form method="post" action="{{ url_for('issues.filter_delete', filter_id=f.id) }}"
+                onsubmit="return confirm('Удалить фильтр «{{ f.name }}»?');" class="d-inline">
+            <button class="btn-close btn-close-sm" style="font-size:.6rem" title="Удалить"></button>
+          </form>
+        </span>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# Модалка: сохранить текущий набор фильтров под именем #}
+<div class="modal fade" id="save-filter-modal" tabindex="-1">
+  <div class="modal-dialog">
+    <form method="post" action="{{ url_for('issues.filter_save') }}" class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Сохранить мой фильтр</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <label class="form-label">Название фильтра</label>
+        <input name="name" list="saved-filter-names" class="form-control" required autocomplete="off"
+               placeholder="Введите название или выберите существующий">
+        <datalist id="saved-filter-names">
+          {% for f in saved_filters %}<option value="{{ f.name }}">{% endfor %}
+        </datalist>
+        <div class="form-text">Начните вводить — покажем совпадения. Совпадающее имя перезапишет фильтр.</div>
+        <input type="hidden" name="query" id="filter-query-input">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+        <button class="btn btn-primary">Сохранить</button>
+      </div>
+    </form>
+  </div>
+</div>
 
 <div class="card shadow-sm">
   <table class="table table-hover align-middle mb-0">
@@ -122,5 +174,18 @@
       placeholder: el.dataset.placeholder,
     });
   });
+
+  // При открытии модалки «Сохранить мой фильтр» кладём текущие значения
+  // формы фильтра (Tom Select уже синхронизировал select'ы) в скрытое поле.
+  var saveModal = document.getElementById('save-filter-modal');
+  if (saveModal) {
+    saveModal.addEventListener('show.bs.modal', function () {
+      var params = new URLSearchParams(new FormData(document.getElementById('filter-form')));
+      // убираем пустые значения (пустой q и т.п.)
+      var clean = new URLSearchParams();
+      params.forEach(function (v, k) { if (v.trim() !== '') clean.append(k, v); });
+      document.getElementById('filter-query-input').value = clean.toString();
+    });
+  }
 </script>
 {% endblock %}

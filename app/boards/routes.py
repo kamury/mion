@@ -8,7 +8,8 @@ from sqlalchemy import or_
 
 from ..extensions import db
 from ..history import add_event
-from ..models import PRIORITY_ORDER, Board, Issue, QuickFilter, Sprint, Status
+from ..models import (PRIORITY_ORDER, Board, Issue, IssueLink, QuickFilter,
+                      Sprint, Status)
 from ..sql_runner import run_ids_query
 
 bp = Blueprint('boards', __name__, url_prefix='/boards')
@@ -230,6 +231,19 @@ def view(board_id):
     parents = ({p.id: p for p in Issue.query.filter(Issue.id.in_(parent_ids)).all()}
                if parent_ids else {})
 
+    # Связи blocks: какие задачи блокируют (источник) и какие заблокированы (цель).
+    # «Заблокирована» показываем только пока блокирующая задача открыта — если
+    # блокер уже в завершающем статусе, блокировка снята.
+    blocks_links = IssueLink.query.filter_by(link_type='blocks').all()
+    blocker_ids = {link.source_id for link in blocks_links}
+    open_blocker_ids = set()
+    if blocker_ids:
+        open_blocker_ids = {
+            i.id for i in Issue.query.join(Status)
+            .filter(Issue.id.in_(blocker_ids), Status.is_done.is_(False)).all()}
+    blocked_ids = {link.target_id for link in blocks_links
+                   if link.source_id in open_blocker_ids}
+
     # Незакрытые задачи каждого спринта (для диалога закрытия) — независимо
     # от запроса доски, чтобы цифры не расходились с тем, что видно на доске
     unfinished_by_sprint = {}
@@ -245,6 +259,7 @@ def view(board_id):
                            unfinished_by_sprint=unfinished_by_sprint,
                            active_filter_ids=active_filter_ids, error=error,
                            child_count=child_count, parents=parents,
+                           blocked_ids=blocked_ids, blocker_ids=blocker_ids,
                            closed_lanes=closed_lanes, show_closed=show_closed,
                            closed_from=request.args.get('closed_from', ''),
                            closed_to=request.args.get('closed_to', ''),
