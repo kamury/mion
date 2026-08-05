@@ -14,6 +14,12 @@
         <a href="{{ url_for('issues.view', issue_id=issue.parent.id) }}">#{{ issue.parent.id }} {{ issue.parent.title }}</a>
       </div>
     {% endif %}
+    {% if issue.source_idea %}
+      <div class="text-muted small">
+        💡 Создан из идеи
+        <a href="{{ url_for('ideas.view', idea_id=issue.source_idea.id) }}">#{{ issue.source_idea.id }} {{ issue.source_idea.title }}</a>
+      </div>
+    {% endif %}
   </div>
   <div class="d-flex gap-2">
     {% if issue.type in ('epic', 'feature') %}

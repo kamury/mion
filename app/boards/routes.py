@@ -231,16 +231,16 @@ def view(board_id):
     parents = ({p.id: p for p in Issue.query.filter(Issue.id.in_(parent_ids)).all()}
                if parent_ids else {})
 
-    # Связи blocks: какие задачи блокируют (источник) и какие заблокированы (цель).
-    # «Заблокирована» показываем только пока блокирующая задача открыта — если
-    # блокер уже в завершающем статусе, блокировка снята.
+    # Связи blocks: значки показываем, только пока блокер открыт — если блокер
+    # уже в завершающем статусе, блокировка снята (и 🧱 у цели, и ❗ у блокера).
     blocks_links = IssueLink.query.filter_by(link_type='blocks').all()
-    blocker_ids = {link.source_id for link in blocks_links}
+    source_ids = {link.source_id for link in blocks_links}
     open_blocker_ids = set()
-    if blocker_ids:
+    if source_ids:
         open_blocker_ids = {
             i.id for i in Issue.query.join(Status)
-            .filter(Issue.id.in_(blocker_ids), Status.is_done.is_(False)).all()}
+            .filter(Issue.id.in_(source_ids), Status.is_done.is_(False)).all()}
+    blocker_ids = open_blocker_ids
     blocked_ids = {link.target_id for link in blocks_links
                    if link.source_id in open_blocker_ids}
 

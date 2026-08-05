@@ -1,0 +1,122 @@
+{% extends 'base.html' %}
+{% from '_helpers.html' import avatar, priority_arrow %}
+{% block title %}Идеи — Трекер{% endblock %}
+
+{% macro idea_card(idea) %}
+  <div class="issue-card card" data-idea-id="{{ idea.id }}">
+    <div class="card-body p-2">
+      <div class="d-flex justify-content-between align-items-start">
+        <span class="d-inline-flex align-items-center gap-1">
+          <span class="badge type-feature">Идея</span> {{ priority_arrow(idea) }}
+        </span>
+        {% if idea.assignee %}{{ avatar(idea.assignee, 22) }}{% else %}{{ avatar(idea.reporter, 22) }}{% endif %}
+      </div>
+      <a class="small text-decoration-none d-block mt-1"
+         href="{{ url_for('ideas.view', idea_id=idea.id) }}">
+        <span class="text-muted">#{{ idea.id }}</span> {{ idea.title }}
+      </a>
+    </div>
+  </div>
+{% endmacro %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+  <h4 class="mb-0">Идеи <span class="text-muted fs-6">({{ active_count }})</span></h4>
+  <a class="btn btn-success btn-sm" href="{{ url_for('ideas.new') }}">+ Новая идея</a>
+</div>
+
+<form method="get" class="d-flex align-items-center gap-2 mb-3">
+  <div class="form-check form-switch mb-0">
+    <input class="form-check-input" type="checkbox" role="switch" id="show-archived"
+           name="show_archived" value="1" {{ 'checked' if show_archived }} onchange="this.form.submit()">
+    <label class="form-check-label" for="show-archived">Показать архивные идеи</label>
+  </div>
+</form>
+
+{% if not statuses %}
+  <div class="alert alert-warning">Нет статусов идей. Добавьте их в
+    <a href="{{ url_for('admin.index') }}">Справочниках</a>.</div>
+{% else %}
+<div class="board-scroll">
+  <div class="board-grid" style="--cols: {{ statuses | length }};">
+    <div class="board-header-row">
+      {% for s in statuses %}
+        <div class="board-col-header">{{ s.name }}</div>
+      {% endfor %}
+    </div>
+    <div class="lane">
+      <div class="lane-cells">
+        {% for s in statuses %}
+        <div class="board-cell" data-status-id="{{ s.id }}">
+          {% for idea in cells[s.id] %}
+            {{ idea_card(idea) }}
+          {% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if no_status %}
+  <div class="mt-3">
+    <h6 class="text-muted">Без статуса</h6>
+    <div class="d-flex flex-wrap gap-2">
+      {% for idea in no_status %}{{ idea_card(idea) }}{% endfor %}
+    </div>
+  </div>
+{% endif %}
+{% endif %}
+
+{% if show_archived %}
+<div class="card shadow-sm mt-4">
+  <div class="card-body">
+    <h6 class="mb-3">Архив идей ({{ archived | length }})
+      <span class="text-muted small fw-normal">— отклонённые и переданные в разработку</span></h6>
+    {% if archived %}
+      <ul class="list-unstyled mb-0">
+        {% for idea in archived %}
+          <li class="mb-2 d-flex align-items-center gap-2 flex-wrap">
+            <span class="badge {{ 'text-bg-success' if idea.archive_reason == 'to_dev' else 'text-bg-secondary' }}">
+              {{ idea.archive_label }}</span>
+            <a class="text-decoration-none" href="{{ url_for('ideas.view', idea_id=idea.id) }}">
+              <span class="text-muted">#{{ idea.id }}</span> {{ idea.title }}</a>
+            {% if idea.epic %}
+              <span class="text-muted small">→ эпик
+                <a href="{{ url_for('issues.view', issue_id=idea.epic.id) }}">#{{ idea.epic.id }}</a></span>
+            {% endif %}
+            <span class="text-muted small">{{ idea.archived_at | dt }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-muted small mb-0">Архив пуст.</p>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
+<script>
+  document.querySelectorAll('.board-cell').forEach(function (cell) {
+    new Sortable(cell, {
+      group: 'ideas',
+      animation: 150,
+      ghostClass: 'sortable-ghost',
+      dragClass: 'sortable-drag',
+      onEnd: function (evt) {
+        if (evt.to === evt.from) return;
+        var ideaId = evt.item.dataset.ideaId;
+        fetch('/ideas/' + ideaId + '/move', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status_id: evt.to.dataset.statusId }),
+        }).then(function (r) { if (!r.ok) location.reload(); })
+          .catch(function () { location.reload(); });
+      },
+    });
+  });
+</script>
+{% endblock %}

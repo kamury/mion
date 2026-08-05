@@ -4,7 +4,7 @@ from flask_login import login_required
 from sqlalchemy.exc import IntegrityError
 
 from ..extensions import db
-from ..models import Component, Customer, Project, Status, Team
+from ..models import Component, Customer, IdeaStatus, Project, Status, Team
 
 bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -14,6 +14,7 @@ KINDS = {
     'customer': (Customer, 'Заказчик'),
     'component': (Component, 'Компонент'),
     'status': (Status, 'Статус'),
+    'idea_status': (IdeaStatus, 'Статус идеи'),
 }
 
 
@@ -33,6 +34,7 @@ def index():
         customers=Customer.query.order_by(Customer.name).all(),
         components=Component.query.order_by(Component.name).all(),
         statuses=Status.query.order_by(Status.position).all(),
+        idea_statuses=IdeaStatus.query.order_by(IdeaStatus.position).all(),
     )
 
 
@@ -45,8 +47,9 @@ def add(kind):
         flash('Название обязательно.', 'danger')
         return redirect(url_for('admin.index'))
     item = model(name=name)
-    if kind == 'status':
+    if kind in ('status', 'idea_status'):
         item.position = request.form.get('position', type=int) or 0
+    if kind == 'status':
         item.is_done = bool(request.form.get('is_done'))
     db.session.add(item)
     try:
@@ -68,8 +71,9 @@ def update(kind, item_id):
         flash('Название обязательно.', 'danger')
         return redirect(url_for('admin.index'))
     item.name = name
-    if kind == 'status':
+    if kind in ('status', 'idea_status'):
         item.position = request.form.get('position', type=int) or 0
+    if kind == 'status':
         item.is_done = bool(request.form.get('is_done'))
     try:
         db.session.commit()

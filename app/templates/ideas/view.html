@@ -1,0 +1,201 @@
+{% extends 'base.html' %}
+{% from '_helpers.html' import avatar %}
+{% block title %}Идея #{{ idea.id }} {{ idea.title }} — Трекер{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+  <div>
+    <h4 class="mb-1"><span class="badge type-feature">Идея</span> #{{ idea.id }} — {{ idea.title }}</h4>
+    <div class="text-muted small">Автор: {{ idea.reporter.name }} · создана {{ idea.created_at | dt }}</div>
+  </div>
+  <div class="d-flex gap-2">
+    {% if not idea.archived %}
+      <a class="btn btn-primary btn-sm" href="{{ url_for('ideas.edit', idea_id=idea.id) }}">Редактировать</a>
+    {% endif %}
+    <form method="post" action="{{ url_for('ideas.delete', idea_id=idea.id) }}"
+          onsubmit="return confirm('Удалить идею #{{ idea.id }}?');">
+      <button class="btn btn-outline-danger btn-sm">Удалить</button>
+    </form>
+  </div>
+</div>
+
+{% if idea.archived %}
+  <div class="alert {{ 'alert-success' if idea.archive_reason == 'to_dev' else 'alert-secondary' }} d-flex align-items-center gap-2 flex-wrap">
+    <strong>В архиве:</strong> {{ idea.archive_label }} ({{ idea.archived_at | dt }}).
+    {% if idea.epic %}
+      Создан эпик <a href="{{ url_for('issues.view', issue_id=idea.epic.id) }}">#{{ idea.epic.id }} {{ idea.epic.title }}</a>.
+    {% endif %}
+    <form method="post" action="{{ url_for('ideas.restore', idea_id=idea.id) }}" class="ms-auto">
+      <button class="btn btn-outline-secondary btn-sm">Вернуть из архива</button>
+    </form>
+  </div>
+{% endif %}
+
+<div class="row">
+  <div class="col-lg-8">
+    <div class="card shadow-sm mb-3">
+      <div class="card-body">
+        {% if idea.summary %}
+          <div class="rendered-html">{{ idea.summary | safe }}</div>
+        {% else %}
+          <p class="text-muted">Описания нет.</p>
+        {% endif %}
+
+        {# ---------- Файлы ---------- #}
+        <hr>
+        <div id="files">
+          <h6>Файлы ({{ idea.attachments | length }})</h6>
+          {% if idea.attachments %}
+          <table class="table table-sm align-middle">
+            <tbody>
+              {% for a in idea.attachments %}
+              <tr>
+                <td><a href="{{ url_for('files.serve', name=a.stored_name) }}" target="_blank">📎 {{ a.original_name }}</a></td>
+                <td class="text-nowrap">{{ (a.size / 1024) | round(1) }} КБ</td>
+                <td class="text-nowrap">{{ a.uploaded_by.name }}</td>
+                <td class="text-muted text-nowrap">{{ a.created_at | dt }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% endif %}
+          <form method="post" action="{{ url_for('ideas.attach', idea_id=idea.id) }}"
+                enctype="multipart/form-data" class="d-flex gap-2 mb-1">
+            <input name="files" type="file" multiple class="form-control form-control-sm" style="max-width: 350px" required>
+            <button class="btn btn-outline-primary btn-sm text-nowrap">Загрузить</button>
+          </form>
+        </div>
+
+        {# ---------- Комментарии ---------- #}
+        <hr>
+        <div id="comments">
+          <h6>Комментарии ({{ idea.comments | length }})</h6>
+          {% for c in idea.comments %}
+            <div class="d-flex gap-2 mb-3" id="comment-{{ c.id }}">
+              <div>{{ avatar(c.author, 36) }}</div>
+              <div class="flex-grow-1">
+                <div class="d-flex align-items-center gap-2">
+                  <strong>{{ c.author.name }}</strong>
+                  <span class="text-muted small">{{ c.created_at | dt }}{% if c.edited_at %} · изменено {{ c.edited_at | dt }}{% endif %}</span>
+                  {% if c.author_id == current_user.id %}
+                    <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none comment-edit-btn"
+                            data-comment="{{ c.id }}">изменить</button>
+                  {% endif %}
+                </div>
+                <div class="rendered-html comment-body" id="comment-body-{{ c.id }}">{{ c.body | safe }}</div>
+                {% if c.author_id == current_user.id %}
+                  <form method="post" class="comment-edit-form d-none mt-2" id="comment-form-{{ c.id }}"
+                        action="{{ url_for('ideas.comment_edit', idea_id=idea.id, comment_id=c.id) }}">
+                    <textarea name="body" id="comment-edit-input-{{ c.id }}" hidden>{{ c.body }}</textarea>
+                    <div id="comment-edit-editor-{{ c.id }}" class="bg-white mb-2"></div>
+                    <button class="btn btn-primary btn-sm">Сохранить</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm comment-edit-cancel"
+                            data-comment="{{ c.id }}">Отмена</button>
+                  </form>
+                {% endif %}
+              </div>
+            </div>
+          {% else %}
+            <p class="text-muted">Комментариев пока нет.</p>
+          {% endfor %}
+
+          <form method="post" action="{{ url_for('ideas.comment', idea_id=idea.id) }}" id="comment-form">
+            <textarea name="body" id="comment-input" hidden></textarea>
+            <div id="comment-editor" class="bg-white mb-2"></div>
+            <button class="btn btn-primary btn-sm">Отправить</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    {% macro field_select(field, options, current_id, empty_label=None) %}
+      <form method="post" action="{{ url_for('ideas.set_field', idea_id=idea.id) }}">
+        <input type="hidden" name="field" value="{{ field }}">
+        <select name="value" class="form-select form-select-sm" onchange="this.form.submit()" {{ 'disabled' if idea.archived }}>
+          {% if empty_label %}<option value="" {{ 'selected' if not current_id }}>{{ empty_label }}</option>{% endif %}
+          {% for o in options %}
+            <option value="{{ o.id }}" {{ 'selected' if o.id == current_id }}>{{ o.name }}</option>
+          {% endfor %}
+        </select>
+      </form>
+    {% endmacro %}
+    <div class="card shadow-sm mb-3">
+      <div class="card-body">
+        <dl class="row mb-0 small">
+          <dt class="col-4 mt-2">Статус</dt>
+          <dd class="col-8 mb-1">{{ field_select('status_id', statuses, idea.status_id, '—') }}</dd>
+          <dt class="col-4 mt-2">Приоритет</dt>
+          <dd class="col-8 mb-1">
+            <form method="post" action="{{ url_for('ideas.set_field', idea_id=idea.id) }}">
+              <input type="hidden" name="field" value="priority">
+              <select name="value" class="form-select form-select-sm" onchange="this.form.submit()" {{ 'disabled' if idea.archived }}>
+                {% for value, label in priorities.items() %}
+                  <option value="{{ value }}" {{ 'selected' if idea.priority == value }}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </form>
+          </dd>
+          <dt class="col-4 mt-2">Автор</dt>
+          <dd class="col-8 mb-1"><span class="d-inline-flex align-items-center gap-1">{{ avatar(idea.reporter, 22) }} {{ idea.reporter.name }}</span></dd>
+          <dt class="col-4 mt-2">Исполнитель</dt>
+          <dd class="col-8 mb-1">{{ field_select('assignee_id', users, idea.assignee_id, '—') }}</dd>
+          <dt class="col-4 mt-2">Проект</dt>
+          <dd class="col-8 mb-1">{{ field_select('project_id', projects, idea.project_id, '—') }}</dd>
+          <dt class="col-4 mt-2">Команда</dt>
+          <dd class="col-8 mb-1">{{ field_select('team_id', teams, idea.team_id, '—') }}</dd>
+          <dt class="col-4 mt-2">Заказчик</dt>
+          <dd class="col-8 mb-1">{{ field_select('customer_id', customers, idea.customer_id, '—') }}</dd>
+          <dt class="col-4 mt-2">Компонент</dt>
+          <dd class="col-8 mb-1">{{ field_select('component_id', components, idea.component_id, '—') }}</dd>
+          <dt class="col-4 mt-2">Обновлена</dt><dd class="col-8 mb-0 mt-2">{{ idea.updated_at | dt }}</dd>
+        </dl>
+
+        {% if not idea.archived %}
+        <hr>
+        <p class="small text-muted mb-2">Решение по идее:</p>
+        <div class="d-grid gap-2">
+          <form method="post" action="{{ url_for('ideas.to_dev', idea_id=idea.id) }}"
+                onsubmit="return confirm('Передать идею в разработку? Будет создан эпик, идея уйдёт в архив.');">
+            <button class="btn btn-success btn-sm w-100">🚀 Передать в разработку</button>
+          </form>
+          <form method="post" action="{{ url_for('ideas.reject', idea_id=idea.id) }}"
+                onsubmit="return confirm('Отклонить идею? Она уйдёт в архив.');">
+            <button class="btn btn-outline-danger btn-sm w-100">Отклонить</button>
+          </form>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  {% if not idea.archived %}
+  initEditor('#comment-editor', '#comment-input');
+  {% endif %}
+
+  var commentEditors = {};
+  document.querySelectorAll('.comment-edit-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var id = btn.dataset.comment;
+      document.getElementById('comment-body-' + id).classList.add('d-none');
+      document.getElementById('comment-form-' + id).classList.remove('d-none');
+      btn.classList.add('d-none');
+      if (!commentEditors[id]) {
+        commentEditors[id] = initEditor('#comment-edit-editor-' + id, '#comment-edit-input-' + id);
+      }
+    });
+  });
+  document.querySelectorAll('.comment-edit-cancel').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var id = btn.dataset.comment;
+      document.getElementById('comment-form-' + id).classList.add('d-none');
+      document.getElementById('comment-body-' + id).classList.remove('d-none');
+      document.querySelector('.comment-edit-btn[data-comment="' + id + '"]').classList.remove('d-none');
+    });
+  });
+</script>
+{% endblock %}

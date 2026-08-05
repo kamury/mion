@@ -136,11 +136,15 @@ class Issue(db.Model):
     start_date = db.Column(db.Date)
     end_date = db.Column(db.Date)
 
+    # Идея, из которой создан этот эпик (при передаче идеи в разработку)
+    source_idea_id = db.Column(db.Integer, db.ForeignKey('ideas.id'))
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow,
                            onupdate=datetime.utcnow, nullable=False)
 
     parent = db.relationship('Issue', remote_side=[id], backref='children')
+    source_idea = db.relationship('Idea', backref=db.backref('epic', uselist=False))
     reporter = db.relationship('User', foreign_keys=[reporter_id])
     assignee = db.relationship('User', foreign_keys=[assignee_id])
     project = db.relationship('Project')
@@ -190,6 +194,7 @@ class Attachment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     issue_id = db.Column(db.Integer, db.ForeignKey('issues.id'))
     comment_id = db.Column(db.Integer, db.ForeignKey('comments.id'))
+    idea_id = db.Column(db.Integer, db.ForeignKey('ideas.id'))
     original_name = db.Column(db.String(300), nullable=False)
     stored_name = db.Column(db.String(300), nullable=False)  # путь внутри UPLOAD_FOLDER
     size = db.Column(db.Integer, default=0, nullable=False)
@@ -278,3 +283,74 @@ class IssueLink(db.Model):
                              backref=db.backref('links_out', cascade='all, delete-orphan'))
     target = db.relationship('Issue', foreign_keys=[target_id],
                              backref=db.backref('links_in', cascade='all, delete-orphan'))
+
+
+# ---------- Идеи ----------
+
+# Причины архивации идеи
+IDEA_ARCHIVE_REASONS = {'rejected': 'Отклонена', 'to_dev': 'Передана в разработку'}
+
+
+class IdeaStatus(db.Model):
+    """Статусы идей — свои, отдельные от статусов задач (колонки доски идей)."""
+    __tablename__ = 'idea_statuses'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(80), unique=True, nullable=False)
+    position = db.Column(db.Integer, default=0, nullable=False)
+
+
+class Idea(db.Model):
+    __tablename__ = 'ideas'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(300), nullable=False)
+    summary = db.Column(db.Text, default='')  # HTML из WYSIWYG
+    priority = db.Column(db.String(20), default='normal',
+                         server_default='normal', nullable=False)
+    status_id = db.Column(db.Integer, db.ForeignKey('idea_statuses.id'))
+    reporter_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    assignee_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'))
+    team_id = db.Column(db.Integer, db.ForeignKey('teams.id'))
+    customer_id = db.Column(db.Integer, db.ForeignKey('customers.id'))
+    component_id = db.Column(db.Integer, db.ForeignKey('components.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow,
+                           onupdate=datetime.utcnow, nullable=False)
+    # Архив: идея отклонена или передана в разработку
+    archived = db.Column(db.Boolean, default=False, nullable=False)
+    archived_at = db.Column(db.DateTime)
+    archive_reason = db.Column(db.String(20))  # 'rejected' | 'to_dev'
+
+    status = db.relationship('IdeaStatus')
+    reporter = db.relationship('User', foreign_keys=[reporter_id])
+    assignee = db.relationship('User', foreign_keys=[assignee_id])
+    project = db.relationship('Project')
+    team = db.relationship('Team')
+    customer = db.relationship('Customer')
+    component = db.relationship('Component')
+    comments = db.relationship('IdeaComment', backref='idea',
+                               cascade='all, delete-orphan',
+                               order_by='IdeaComment.created_at')
+    attachments = db.relationship('Attachment', backref='idea',
+                                  cascade='all, delete-orphan',
+                                  foreign_keys='Attachment.idea_id')
+
+    @property
+    def priority_label(self):
+        return PRIORITIES.get(self.priority, self.priority)
+
+    @property
+    def archive_label(self):
+        return IDEA_ARCHIVE_REASONS.get(self.archive_reason, self.archive_reason)
+
+
+class IdeaComment(db.Model):
+    __tablename__ = 'idea_comments'
+    id = db.Column(db.Integer, primary_key=True)
+    idea_id = db.Column(db.Integer, db.ForeignKey('ideas.id'), nullable=False)
+    author_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    edited_at = db.Column(db.DateTime)
+
+    author = db.relationship('User')

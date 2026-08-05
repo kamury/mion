@@ -89,5 +89,42 @@
       </div>
     </div>
   </div>
+
+  <div class="col-lg-6 mb-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h5 class="card-title">Статусы идей</h5>
+        <p class="text-muted small mb-2">Порядок задаёт последовательность колонок на доске идей.</p>
+        <table class="table table-sm align-middle">
+          <thead><tr><th>ID</th><th>Название</th><th style="width:90px">Порядок</th><th></th><th></th></tr></thead>
+          <tbody>
+            {% for s in idea_statuses %}
+            <tr>
+              <td class="text-muted text-nowrap">#{{ s.id }}</td>
+              <td><input form="idea-status-form-{{ s.id }}" name="name" class="form-control form-control-sm" value="{{ s.name }}" required></td>
+              <td><input form="idea-status-form-{{ s.id }}" name="position" type="number" class="form-control form-control-sm" value="{{ s.position }}"></td>
+              <td><button form="idea-status-form-{{ s.id }}" class="btn btn-sm btn-outline-secondary" title="Сохранить">💾</button></td>
+              <td class="text-end" style="width: 1%">
+                <form method="post" action="{{ url_for('admin.delete', kind='idea_status', item_id=s.id) }}"
+                      onsubmit="return confirm('Удалить статус идей «{{ s.name }}»?');">
+                  <button class="btn btn-sm btn-outline-danger">✕</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% for s in idea_statuses %}
+          <form method="post" id="idea-status-form-{{ s.id }}"
+                action="{{ url_for('admin.update', kind='idea_status', item_id=s.id) }}"></form>
+        {% endfor %}
+        <form method="post" action="{{ url_for('admin.add', kind='idea_status') }}" class="row g-2">
+          <div class="col"><input name="name" class="form-control form-control-sm" placeholder="Новый статус идей" required></div>
+          <div class="col-3"><input name="position" type="number" class="form-control form-control-sm" placeholder="Порядок"></div>
+          <div class="col-auto"><button class="btn btn-sm btn-primary">Добавить</button></div>
+        </form>
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}

@@ -1,0 +1,120 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Идея #' ~ idea.id if idea else 'Новая идея' }} — Трекер{% endblock %}
+{% block content %}
+{% set f = form_data or {} %}
+{% set cur = {
+  'title': f.get('title', idea.title if idea else ''),
+  'summary': f.get('summary', idea.summary if idea else ''),
+  'status_id': f.get('status_id', idea.status_id if idea else '') or '',
+  'priority': f.get('priority', idea.priority if idea else 'normal'),
+  'assignee_id': f.get('assignee_id', idea.assignee_id if idea else '') or '',
+  'project_id': f.get('project_id', idea.project_id if idea else '') or '',
+  'team_id': f.get('team_id', idea.team_id if idea else '') or '',
+  'customer_id': f.get('customer_id', idea.customer_id if idea else '') or '',
+  'component_id': f.get('component_id', idea.component_id if idea else '') or '',
+} %}
+
+<h4 class="mb-3">{{ 'Редактирование идеи #' ~ idea.id if idea else 'Новая идея' }}</h4>
+
+<form method="post" id="idea-form" enctype="multipart/form-data">
+  <div class="row">
+    <div class="col-lg-8">
+      <div class="card shadow-sm mb-3">
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="form-label">Название *</label>
+            <input name="title" class="form-control" required value="{{ cur.title }}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Описание</label>
+            <textarea name="summary" id="summary-input" hidden>{{ cur.summary }}</textarea>
+            <div id="summary-editor" class="bg-white"></div>
+          </div>
+          {% if not idea %}
+          <div class="mb-3">
+            <label class="form-label">Прикрепить файлы</label>
+            <input name="files" type="file" multiple class="form-control">
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="card shadow-sm mb-3">
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="form-label">Статус</label>
+            <select name="status_id" class="form-select">
+              {% for s in statuses %}
+                <option value="{{ s.id }}" {{ 'selected' if cur.status_id|string == s.id|string }}>{{ s.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Приоритет</label>
+            <select name="priority" class="form-select">
+              {% for value, label in priorities.items() %}
+                <option value="{{ value }}" {{ 'selected' if cur.priority == value }}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Исполнитель</label>
+            <select name="assignee_id" class="form-select">
+              <option value="">—</option>
+              {% for u in users %}
+                <option value="{{ u.id }}" {{ 'selected' if cur.assignee_id|string == u.id|string }}>{{ u.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Проект</label>
+            <select name="project_id" class="form-select">
+              <option value="">—</option>
+              {% for p in projects %}
+                <option value="{{ p.id }}" {{ 'selected' if cur.project_id|string == p.id|string }}>{{ p.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Команда</label>
+            <select name="team_id" class="form-select">
+              <option value="">—</option>
+              {% for t in teams %}
+                <option value="{{ t.id }}" {{ 'selected' if cur.team_id|string == t.id|string }}>{{ t.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Заказчик</label>
+            <select name="customer_id" class="form-select">
+              <option value="">—</option>
+              {% for c in customers %}
+                <option value="{{ c.id }}" {{ 'selected' if cur.customer_id|string == c.id|string }}>{{ c.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Компонент</label>
+            <select name="component_id" class="form-select">
+              <option value="">—</option>
+              {% for c in components %}
+                <option value="{{ c.id }}" {{ 'selected' if cur.component_id|string == c.id|string }}>{{ c.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+      </div>
+      <button class="btn btn-primary">{{ 'Сохранить' if idea else 'Создать' }}</button>
+      <a class="btn btn-outline-secondary"
+         href="{{ url_for('ideas.view', idea_id=idea.id) if idea else url_for('ideas.board') }}">Отмена</a>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  initEditor('#summary-editor', '#summary-input');
+</script>
+{% endblock %}

@@ -27,6 +27,7 @@ def create_app():
     from .auth.routes import bp as auth_bp
     from .issues.routes import bp as issues_bp
     from .boards.routes import bp as boards_bp
+    from .ideas.routes import bp as ideas_bp
     from .roadmap.routes import bp as roadmap_bp
     from .admin.routes import bp as admin_bp
     from .files import bp as files_bp
@@ -34,6 +35,7 @@ def create_app():
     app.register_blueprint(auth_bp)
     app.register_blueprint(issues_bp)
     app.register_blueprint(boards_bp)
+    app.register_blueprint(ideas_bp)
     app.register_blueprint(roadmap_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(files_bp)
@@ -67,7 +69,7 @@ def _register_cli(app):
     @app.cli.command('init-db')
     def init_db():
         """Создать таблицы и добавить стартовые данные."""
-        from .models import Customer, Project, Status, Team
+        from .models import Customer, IdeaStatus, Project, Status, Team
 
         db.create_all()
 
@@ -76,6 +78,12 @@ def _register_cli(app):
                 Status(name='To Do', position=1),
                 Status(name='In Progress', position=2),
                 Status(name='Done', position=3, is_done=True),
+            ])
+        if IdeaStatus.query.count() == 0:
+            db.session.add_all([
+                IdeaStatus(name='Новая', position=1),
+                IdeaStatus(name='На обсуждении', position=2),
+                IdeaStatus(name='Одобрена', position=3),
             ])
         if Project.query.count() == 0:
             db.session.add(Project(name='Default'))
