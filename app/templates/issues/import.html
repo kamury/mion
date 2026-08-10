@@ -25,9 +25,17 @@
         <p class="mb-1 text-muted small">Пока ничего не импортировано — проверь список ниже.
           Если что-то не так, исправь файл и загрузи его заново.</p>
         <p class="mb-1">Будет создано задач: <strong>{{ preview.created }}</strong>,
+          {% if preview.created_ideas %}идей: <strong>{{ preview.created_ideas }}</strong>, {% endif %}
           пропущено строк без названия: {{ preview.skipped }}.</p>
-        {% if preview.epic_linked %}
-          <p class="mb-1">Привяжется к эпикам по Epic Link: <strong>{{ preview.epic_linked }}</strong>.</p>
+        {% if preview.parent_linked %}
+          <p class="mb-1">Привяжется к родителям по Parent Link: <strong>{{ preview.parent_linked }}</strong>.</p>
+        {% endif %}
+        {% if preview.errors %}
+          <p class="mb-1 mt-2 text-danger fw-semibold">Ошибки ({{ preview.errors | length }})
+            — эти строки не будут созданы или не привяжутся к родителю:</p>
+          <ul class="small mb-0 text-danger">
+            {% for e in preview.errors %}<li>{{ e }}</li>{% endfor %}
+          </ul>
         {% endif %}
         {% if preview.warnings %}
           <p class="mb-1 mt-2 text-warning-emphasis">Предупреждения:</p>
@@ -35,20 +43,11 @@
             {% for w in preview.warnings %}<li>{{ w }}</li>{% endfor %}
           </ul>
         {% endif %}
-        {% if preview.epic_link_rejected %}
-          <p class="mb-1 mt-2 text-warning-emphasis">Не привяжутся к эпику — тип не может
-            быть дочерним для Epic (только Feature):</p>
-          <ul class="small mb-0">
-            {% for r in preview.epic_link_rejected %}
-              <li>[{{ r.type }}] {{ r.title | truncate(60) }} → эпик «{{ r.epic }}»</li>
-            {% endfor %}
-          </ul>
-        {% endif %}
         <form method="post" class="d-flex gap-2 mt-3">
           <input type="hidden" name="action" value="confirm">
           <input type="hidden" name="token" value="{{ token }}">
           <input type="hidden" name="filename" value="{{ filename }}">
-          <button class="btn btn-success">Импортировать {{ preview.created }} задач</button>
+          <button class="btn btn-success">Импортировать {{ preview.created }} задач{% if preview.created_ideas %} и {{ preview.created_ideas }} идей{% endif %}</button>
           <a class="btn btn-outline-secondary" href="{{ url_for('issues.import_excel') }}">Отмена</a>
         </form>
       </div>
@@ -60,24 +59,21 @@
       <div class="card-body">
         <h6>Результат импорта</h6>
         <p class="mb-1">Создано задач: <strong>{{ result.created }}</strong>,
+          {% if result.created_ideas %}идей: <strong>{{ result.created_ideas }}</strong>, {% endif %}
           пропущено строк без названия: {{ result.skipped }}.</p>
-        {% if result.epic_linked %}
-          <p class="mb-1">Привязано к эпикам по Epic Link: <strong>{{ result.epic_linked }}</strong>.</p>
+        {% if result.parent_linked %}
+          <p class="mb-1">Привязано к родителям по Parent Link: <strong>{{ result.parent_linked }}</strong>.</p>
+        {% endif %}
+        {% if result.errors %}
+          <p class="mb-1 mt-2 text-danger fw-semibold">Ошибки ({{ result.errors | length }}):</p>
+          <ul class="small mb-0 text-danger">
+            {% for e in result.errors %}<li>{{ e }}</li>{% endfor %}
+          </ul>
         {% endif %}
         {% if result.warnings %}
           <p class="mb-1 mt-2 text-warning-emphasis">Предупреждения:</p>
           <ul class="small mb-0">
             {% for w in result.warnings %}<li>{{ w }}</li>{% endfor %}
-          </ul>
-        {% endif %}
-        {% if result.epic_link_rejected %}
-          <p class="mb-1 mt-2 text-warning-emphasis">Не привязаны к эпику — тип не может
-            быть дочерним для Epic (только Feature):</p>
-          <ul class="small mb-0">
-            {% for r in result.epic_link_rejected %}
-              <li><a href="{{ url_for('issues.view', issue_id=r.id) }}" target="_blank">#{{ r.id }}</a>
-                [{{ r.type }}] {{ r.title | truncate(60) }} → эпик «{{ r.epic }}»</li>
-            {% endfor %}
           </ul>
         {% endif %}
       </div>
@@ -101,11 +97,19 @@
             незнакомые имена остаются пустыми (пользователи не создаются).</li>
           <li>Типы Jira: Task → Task, Bug → Bug, Story → Feature, Sub-task → Task,
             Epic → Epic. Неизвестный тип станет Task.</li>
-          <li><code>Epic Link</code> привязывает задачу к эпику по названию
-            (эпик ищется среди существующих и создаваемых этим же импортом).
-            Привязка возможна только для Feature — иерархия
-            Epic → Feature → Task/Bug не нарушается, остальные попадут
-            в отчёт ниже.</li>
+          <li><strong>Тип <code>Idea</code> (или <code>Идея</code>) импортируется как идея</strong>
+            в раздел «Идеи», а не как задача. У идеи берутся Название, Описание,
+            Приоритет, Исполнитель, Автор, Проект, Команда, Заказчик, Компонент.
+            Статус берётся из <em>справочника статусов идей</em> (создаётся при
+            необходимости). Спринт, Parent Link и иерархия к идеям не применяются.</li>
+          <li><code>Parent Link</code> — <strong>полное название (Summary) родительской
+            задачи</strong>. Родитель ищется сначала среди задач этого же файла, затем
+            среди уже существующих в базе (по точному совпадению названия).
+            Иерархия соблюдается: Feature → под Epic, Task/Bug → под Feature.
+            Если родитель не найден или не подходит по иерархии — задача создастся,
+            но без связи, и это попадёт в список ошибок перед импортом.</li>
+          <li>Строки с <strong>пустым названием</strong> не импортируются (задачи без
+            названия не бывает) и тоже попадают в список ошибок.</li>
         </ul>
         <p class="mb-0 text-muted">Экспортированный из трекера файл можно импортировать обратно —
           столбцы совместимы.</p>

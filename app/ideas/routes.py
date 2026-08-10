@@ -5,6 +5,7 @@ from datetime import datetime
 from flask import (Blueprint, abort, current_app, flash, jsonify, redirect,
                    render_template, request, url_for)
 from flask_login import current_user, login_required
+from markupsafe import Markup, escape
 
 from ..extensions import db
 from ..files import save_upload
@@ -250,8 +251,12 @@ def to_dev(idea_id):
     idea.archived_at = datetime.utcnow()
     db.session.commit()
 
-    flash(f'Идея #{idea.id} передана в разработку — создан эпик #{epic.id}.', 'success')
-    return redirect(url_for('issues.view', issue_id=epic.id))
+    epic_url = url_for('issues.view', issue_id=epic.id)
+    flash(Markup(
+        f'Идея #{escape(idea.id)} передана в разработку — создан эпик '
+        f'<a href="{escape(epic_url)}" class="alert-link">#{escape(epic.id)} '
+        f'{escape(epic.title)}</a>.'), 'success')
+    return redirect(epic_url)
 
 
 @bp.post('/<int:idea_id>/restore')

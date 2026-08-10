@@ -19,8 +19,8 @@ from markupsafe import escape
 
 from .extensions import db
 from .history import add_event
-from .models import (ISSUE_TYPES, PARENT_TYPE, Component, Customer, Issue,
-                     Project, Sprint, Status, Team, User)
+from .models import (ISSUE_TYPES, PARENT_TYPE, Component, Customer, Idea,
+                     IdeaStatus, Issue, Project, Sprint, Status, Team, User)
 
 # Заголовок столбца (lower) -> наше поле
 COLUMN_MAP = {
@@ -52,8 +52,9 @@ COLUMN_MAP = {
     'обновлена': 'updated',
     'description': 'description',
     'описание': 'description',
-    'epic link': 'epic_link',
-    'epic name': 'epic_name',
+    'parent link': 'parent_link',
+    'родитель': 'parent_link',
+    'родительская задача': 'parent_link',
     'priority': 'priority',
     'приоритет': 'priority',
 }
@@ -69,6 +70,9 @@ TYPE_MAP = {
     'bug': 'bug',
     'баг': 'bug',
 }
+
+# Тип «Idea» импортируется как идея (в раздел Идеи), а не как задача
+IDEA_TYPE_WORDS = {'idea', 'идея'}
 
 # Приоритеты Jira (обе стандартные схемы) -> наши
 PRIORITY_MAP = {
@@ -216,6 +220,7 @@ def import_rows(rows, current_user, dry_run=False):
         raise ValueError('Не найден столбец Summary / Название.')
 
     warnings = set()
+    errors = []            # проблемы, показываемые в отчёте перед импортом
     created = 0
     skipped = 0
 
@@ -230,13 +235,41 @@ def import_rows(rows, current_user, dry_run=False):
         'component': (_lookup_cache(Component), Component),
     }
     statuses = _lookup_cache(Status)
+    idea_statuses = _lookup_cache(IdeaStatus)
     sprints = _lookup_cache(Sprint)
     users = {u.name.strip().lower(): u for u in User.query.all()}
-    # Эпики для привязки по Epic Link: уже существующие + созданные этим импортом
-    epics = {i.title.strip().lower(): i
-             for i in Issue.query.filter_by(type='epic').all()}
-    pending_epic_links = []  # (issue, значение Epic Link)
+    # Привязка к родителю по Parent Link (полное совпадение названия):
+    #  created_issues — задачи этого импорта (ищем сначала в них),
+    #  pending_parent_links — (задача, название родителя) для разбора после цикла.
+    created_issues = []
+    pending_parent_links = []
     next_position = (db.session.query(db.func.max(Status.position)).scalar() or 0) + 1
+    next_idea_position = (db.session.query(db.func.max(IdeaStatus.position)).scalar() or 0) + 1
+    created_ideas = 0
+
+    def _summary_from(row):
+        description = _cell(row, colmap, 'description')
+        if not description:
+            return None
+        paragraphs = str(description).splitlines()
+        return ''.join(f'<p>{escape(p)}</p>' for p in paragraphs if p.strip())
+
+    def _reporter_id(row):
+        name = _cell(row, colmap, 'reporter')
+        obj = users.get(str(name).lower()) if name else None
+        if name and not obj:
+            warnings.add(f'Автор «{name}» не найден — автором записан текущий пользователь.')
+        return (obj or current_user).id
+
+    def _assignee_id(row):
+        name = _cell(row, colmap, 'assignee')
+        if not name:
+            return None
+        obj = users.get(str(name).lower())
+        if obj:
+            return obj.id
+        warnings.add(f'Исполнитель «{name}» не найден — оставлен пустым.')
+        return None
 
     def get_or_create_dict(kind, name):
         cache, model = caches[kind]
@@ -248,24 +281,77 @@ def import_rows(rows, current_user, dry_run=False):
             cache[name.lower()] = obj
         return obj
 
-    for row in rows[header_idx + 1:]:
+    def _import_priority(row):
+        raw_priority = _cell(row, colmap, 'priority')
+        if not raw_priority:
+            return 'normal'
+        if str(raw_priority).lower() not in PRIORITY_MAP:
+            warnings.add(f'Неизвестный приоритет «{raw_priority}» — записан Normal.')
+        return PRIORITY_MAP.get(str(raw_priority).lower(), 'normal')
+
+    def _import_refs(row, obj):
+        for kind, attr in (('project', 'project_id'), ('team', 'team_id'),
+                           ('customer', 'customer_id'), ('component', 'component_id')):
+            name = _cell(row, colmap, kind)
+            if name:
+                setattr(obj, attr, get_or_create_dict(kind, str(name)[:120]).id)
+
+    def _import_dates(row, obj):
+        created_at = _parse_date(_cell(row, colmap, 'created'))
+        updated_at = _parse_date(_cell(row, colmap, 'updated'))
+        if created_at:
+            obj.created_at = created_at
+        obj.updated_at = updated_at or created_at or datetime.utcnow()
+
+    for offset, row in enumerate(rows[header_idx + 1:], start=1):
+        sheet_row = header_idx + 1 + offset  # человекочитаемый номер строки в файле
         title = _cell(row, colmap, 'title')
         if not title:
-            skipped += 1
+            # Пустое название: если в строке вообще есть данные — это ошибка
+            # (без названия задачу/идею не создать); пустые строки молча пропускаем.
+            if any(cell is not None and str(cell).strip() for cell in row):
+                errors.append(f'Строка {sheet_row}: пустое название — не импортировано.')
+                skipped += 1
             continue
 
-        issue = Issue(title=str(title)[:300])
-
         raw_type = (_cell(row, colmap, 'type') or 'task')
-        issue.type = TYPE_MAP.get(str(raw_type).lower(), 'task')
-        if str(raw_type).lower() not in TYPE_MAP:
+        raw_type_lower = str(raw_type).lower()
+
+        # ---------- Идея (тип Idea) ----------
+        if raw_type_lower in IDEA_TYPE_WORDS:
+            idea = Idea(title=str(title)[:300], priority=_import_priority(row))
+            # статус идеи из своего справочника (создаём при необходимости)
+            status_name = _cell(row, colmap, 'status')
+            ist = None
+            if status_name:
+                key = str(status_name).lower()
+                ist = idea_statuses.get(key)
+                if not ist:
+                    ist = IdeaStatus(name=str(status_name)[:80], position=next_idea_position)
+                    next_idea_position += 1
+                    db.session.add(ist)
+                    db.session.flush()
+                    idea_statuses[key] = ist
+            if not ist:
+                ist = IdeaStatus.query.order_by(IdeaStatus.position).first()
+            idea.status_id = ist.id if ist else None
+            _import_refs(row, idea)
+            idea.reporter_id = _reporter_id(row)
+            idea.assignee_id = _assignee_id(row)
+            idea.summary = _summary_from(row) or ''
+            _import_dates(row, idea)
+            db.session.add(idea)
+            db.session.flush()
+            created_ideas += 1
+            continue
+
+        # ---------- Задача ----------
+        issue = Issue(title=str(title)[:300])
+        issue.type = TYPE_MAP.get(raw_type_lower, 'task')
+        if raw_type_lower not in TYPE_MAP:
             warnings.add(f'Неизвестный тип «{raw_type}» — импортирован как Task.')
 
-        raw_priority = _cell(row, colmap, 'priority')
-        if raw_priority:
-            issue.priority = PRIORITY_MAP.get(str(raw_priority).lower(), 'normal')
-            if str(raw_priority).lower() not in PRIORITY_MAP:
-                warnings.add(f'Неизвестный приоритет «{raw_priority}» — записан Normal.')
+        issue.priority = _import_priority(row)
 
         # Статус: создаём при необходимости
         status_name = _cell(row, colmap, 'status')
@@ -339,52 +425,64 @@ def import_rows(rows, current_user, dry_run=False):
         db.session.flush()
         add_event(issue, current_user, 'created')
         created += 1
+        created_issues.append(issue)
 
-        if issue.type == 'epic':
-            epics.setdefault(issue.title.strip().lower(), issue)
-            # В Jira Epic Link ссылается на Epic Name, который может
-            # отличаться от Summary — запоминаем оба варианта.
-            epic_name = _cell(row, colmap, 'epic_name')
-            if epic_name:
-                epics.setdefault(str(epic_name).strip().lower(), issue)
+        parent_link = _cell(row, colmap, 'parent_link')
+        if parent_link:
+            pending_parent_links.append((issue, str(parent_link).strip()))
 
-        epic_link = _cell(row, colmap, 'epic_link')
-        if epic_link:
-            pending_epic_links.append((issue, str(epic_link).strip()))
+    # Привязка к родителю по Parent Link (полное совпадение названия). Делается
+    # после цикла: родитель может стоять в файле ниже своей дочерней задачи.
+    def _norm(text):
+        return str(text).strip().lower()
 
-    # Привязка к эпикам: после основного цикла, потому что эпик может
-    # встретиться в файле позже своих задач.
-    epic_linked = 0
-    epic_link_rejected = []
-    for issue, epic_name in pending_epic_links:
-        epic = epics.get(epic_name.lower())
-        if not epic:
-            warnings.add(f'Эпик «{epic_name}» не найден — привязка пропущена.')
+    file_titles = {}
+    for iss in created_issues:
+        file_titles.setdefault(_norm(iss.title), iss)  # первое совпадение в файле
+
+    parent_linked = 0
+    for child, parent_title in pending_parent_links:
+        key = _norm(parent_title)
+        # 1) ищем среди задач этого импорта; 2) затем среди уже существующих в базе
+        parent = file_titles.get(key)
+        if not parent:
+            parent = (Issue.query.filter(db.func.lower(Issue.title) == key,
+                                         Issue.id != child.id).first())
+        if not parent:
+            errors.append(f'«{child.title}»: родитель «{parent_title}» не найден '
+                          f'ни в файле, ни в базе.')
             continue
-        if PARENT_TYPE.get(issue.type) == 'epic':
-            issue.parent_id = epic.id
-            epic_linked += 1
-        else:
-            epic_link_rejected.append({
-                'id': issue.id,
-                'title': issue.title,
-                'type': ISSUE_TYPES.get(issue.type, issue.type),
-                'epic': epic.title,
-            })
+
+        expected = PARENT_TYPE.get(child.type)
+        if expected is None:
+            errors.append(f'«{child.title}» [{ISSUE_TYPES.get(child.type)}]: у этого типа '
+                          f'не может быть родителя — связь не создана.')
+            continue
+        if parent.type != expected:
+            errors.append(
+                f'«{child.title}» [{ISSUE_TYPES.get(child.type)}]: родитель «{parent.title}» '
+                f'[{ISSUE_TYPES.get(parent.type)}] не подходит по иерархии — родитель должен '
+                f'быть {ISSUE_TYPES.get(expected)}. Связь не создана.')
+            continue
+
+        child.parent_id = parent.id
+        parent_linked += 1
 
     if dry_run:
         db.session.rollback()
     else:
         db.session.commit()
-    return {'created': created, 'skipped': skipped, 'warnings': sorted(warnings),
-            'epic_linked': epic_linked, 'epic_link_rejected': epic_link_rejected}
+    return {'created': created, 'created_ideas': created_ideas, 'skipped': skipped,
+            'warnings': sorted(warnings), 'parent_linked': parent_linked,
+            'errors': errors}
 
 
 # ---------- Экспорт ----------
 
+# «Parent Link» — название родителя (для round-trip: экспорт -> импорт)
 EXPORT_HEADERS = ['Key', 'Project', 'Summary', 'Issue Type', 'Priority',
                   'Status', 'Assignee', 'Reporter', 'Team', 'Customer',
-                  'Component', 'Sprint', 'Parent', 'Created', 'Updated',
+                  'Component', 'Sprint', 'Parent Link', 'Created', 'Updated',
                   'Description']
 
 
@@ -419,13 +517,13 @@ def build_export(issues):
             issue.customer.name if issue.customer else '',
             issue.component.name if issue.component else '',
             issue.sprint.name if issue.sprint else '',
-            f'#{issue.parent_id}' if issue.parent_id else '',
+            issue.parent.title if issue.parent else '',
             issue.created_at.strftime('%d.%m.%Y %H:%M'),
             issue.updated_at.strftime('%d.%m.%Y %H:%M'),
             _plain_text(issue.summary),
         ])
 
-    widths = [8, 18, 50, 10, 10, 14, 20, 20, 15, 15, 15, 15, 8, 17, 17, 60]
+    widths = [8, 18, 50, 10, 10, 14, 20, 20, 15, 15, 15, 15, 40, 17, 17, 60]
     for idx, width in enumerate(widths, start=1):
         sheet.column_dimensions[openpyxl.utils.get_column_letter(idx)].width = width
 

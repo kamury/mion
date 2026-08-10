@@ -240,7 +240,10 @@ def import_excel():
             os.remove(path)
             try:
                 result = import_rows(read_rows(data, filename), current_user)
-                flash(f"Импортировано задач: {result['created']}.", 'success')
+                msg = f"Импортировано задач: {result['created']}"
+                if result.get('created_ideas'):
+                    msg += f", идей: {result['created_ideas']}"
+                flash(msg + '.', 'success')
             except Exception as e:
                 db.session.rollback()
                 flash(f'Ошибка импорта: {e}', 'danger')
