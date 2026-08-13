@@ -322,6 +322,46 @@ def bulk():
                            error=error, **_form_choices())
 
 
+def _bulk_changes(form):
+    """Собирает изменения полей из set_* значений формы группового блока."""
+    changes = {}
+    for field in BULK_FIELDS:
+        raw = form.get('set_' + field, '')
+        if raw == '':
+            continue  # не менять
+        changes[field] = None if raw == '__clear__' else int(raw)
+    return changes
+
+
+@bp.post('/bulk-apply')
+@login_required
+def bulk_apply():
+    """Групповая установка полей для всех задач текущего фильтра (со стр. «Задачи»)."""
+    issues = _filtered_issues(request.form)  # фильтр приходит скрытыми полями
+    changes = _bulk_changes(request.form)
+
+    # вернёмся на тот же отфильтрованный список
+    filter_args = {k: request.form.getlist(k)
+                   for k in FILTER_FIELDS if request.form.getlist(k)}
+    target = url_for('issues.index', **filter_args)
+
+    if not changes:
+        flash('Не выбрано ни одного поля для изменения.', 'warning')
+    elif not issues:
+        flash('Под текущий фильтр не попала ни одна задача.', 'warning')
+    else:
+        changed = 0
+        for issue in issues:
+            old = snapshot(issue)
+            for field, value in changes.items():
+                setattr(issue, field, value)
+            if record_update(issue, old, current_user):
+                changed += 1
+        db.session.commit()
+        flash(f'Обновлено задач: {changed} из {len(issues)}.', 'success')
+    return redirect(target)
+
+
 @bp.route('/new', methods=['GET', 'POST'])
 @login_required
 def new():

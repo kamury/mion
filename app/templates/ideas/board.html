@@ -1,6 +1,9 @@
 {% extends 'base.html' %}
 {% from '_helpers.html' import avatar, priority_arrow %}
 {% block title %}Идеи — Трекер{% endblock %}
+{% block head %}
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+{% endblock %}
 
 {% macro idea_card(idea) %}
   <div class="issue-card card" data-idea-id="{{ idea.id }}">
@@ -25,11 +28,50 @@
   <a class="btn btn-success btn-sm" href="{{ url_for('ideas.new') }}">+ Новая идея</a>
 </div>
 
-<form method="get" class="d-flex align-items-center gap-2 mb-3">
-  <div class="form-check form-switch mb-0">
-    <input class="form-check-input" type="checkbox" role="switch" id="show-archived"
-           name="show_archived" value="1" {{ 'checked' if show_archived }} onchange="this.form.submit()">
-    <label class="form-check-label" for="show-archived">Показать архивные идеи</label>
+<form method="get" class="row g-2 align-items-center mb-3">
+  <div class="col-auto">
+    <select name="project_id" multiple class="form-select form-select-sm filter-select" data-placeholder="Любой проект">
+      <option value="__none__" {{ 'selected' if '__none__' in args.getlist('project_id') }}>— не задано —</option>
+      {% for p in projects %}
+        <option value="{{ p.id }}" {{ 'selected' if p.id|string in args.getlist('project_id') }}>{{ p.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <select name="team_id" multiple class="form-select form-select-sm filter-select" data-placeholder="Любая команда">
+      <option value="__none__" {{ 'selected' if '__none__' in args.getlist('team_id') }}>— не задано —</option>
+      {% for t in teams %}
+        <option value="{{ t.id }}" {{ 'selected' if t.id|string in args.getlist('team_id') }}>{{ t.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <select name="customer_id" multiple class="form-select form-select-sm filter-select" data-placeholder="Любой заказчик">
+      <option value="__none__" {{ 'selected' if '__none__' in args.getlist('customer_id') }}>— не задано —</option>
+      {% for c in customers %}
+        <option value="{{ c.id }}" {{ 'selected' if c.id|string in args.getlist('customer_id') }}>{{ c.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <select name="component_id" multiple class="form-select form-select-sm filter-select" data-placeholder="Любой компонент">
+      <option value="__none__" {{ 'selected' if '__none__' in args.getlist('component_id') }}>— не задано —</option>
+      {% for c in components %}
+        <option value="{{ c.id }}" {{ 'selected' if c.id|string in args.getlist('component_id') }}>{{ c.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <button class="btn btn-primary btn-sm" title="Фильтровать" aria-label="Фильтровать">🔍</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('ideas.board') }}"
+       title="Сбросить" aria-label="Сбросить">✕</a>
+  </div>
+  <div class="col-auto ms-2">
+    <div class="form-check form-switch mb-0">
+      <input class="form-check-input" type="checkbox" role="switch" id="show-archived"
+             name="show_archived" value="1" {{ 'checked' if show_archived }} onchange="this.form.submit()">
+      <label class="form-check-label" for="show-archived">Показать архивные идеи</label>
+    </div>
   </div>
 </form>
 
@@ -98,8 +140,13 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
 <script>
+  document.querySelectorAll('select.filter-select').forEach(function (el) {
+    new TomSelect(el, { plugins: ['remove_button'], placeholder: el.dataset.placeholder });
+  });
+
   document.querySelectorAll('.board-cell').forEach(function (cell) {
     new Sortable(cell, {
       group: 'ideas',

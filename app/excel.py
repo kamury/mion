@@ -30,6 +30,7 @@ COLUMN_MAP = {
     'summary': 'title',
     'название': 'title',
     'issue type': 'type',
+    'type': 'type',
     'тип': 'type',
     'status': 'status',
     'статус': 'status',
@@ -480,7 +481,7 @@ def import_rows(rows, current_user, dry_run=False):
 # ---------- Экспорт ----------
 
 # «Parent Link» — название родителя (для round-trip: экспорт -> импорт)
-EXPORT_HEADERS = ['Key', 'Project', 'Summary', 'Issue Type', 'Priority',
+EXPORT_HEADERS = ['Key', 'Project', 'Summary', 'Type', 'Priority',
                   'Status', 'Assignee', 'Reporter', 'Team', 'Customer',
                   'Component', 'Sprint', 'Parent Link', 'Created', 'Updated',
                   'Description']

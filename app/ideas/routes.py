@@ -9,6 +9,7 @@ from markupsafe import Markup, escape
 
 from ..extensions import db
 from ..files import save_upload
+from ..filters import multi_condition
 from ..models import (PRIORITIES, Attachment, Component, Customer, Idea,
                       IdeaComment, IdeaStatus, Issue, Project, Status, Team,
                       User)
@@ -60,11 +61,24 @@ def _save_idea_files(idea, files):
     return count
 
 
+def _apply_idea_filters(query, args):
+    """Фильтры доски идей: проект, команда, заказчик, компонент (мультивыбор
+    + «не задано»), как на вкладке «Задачи»."""
+    for field, column in (('project_id', Idea.project_id),
+                          ('team_id', Idea.team_id),
+                          ('customer_id', Idea.customer_id),
+                          ('component_id', Idea.component_id)):
+        cond = multi_condition(column, args.getlist(field))
+        if cond is not None:
+            query = query.filter(cond)
+    return query
+
+
 @bp.route('/')
 @login_required
 def board():
     statuses = IdeaStatus.query.order_by(IdeaStatus.position).all()
-    active = (Idea.query.filter_by(archived=False)
+    active = (_apply_idea_filters(Idea.query.filter_by(archived=False), request.args)
               .order_by(Idea.id.desc()).all())
     cells = {s.id: [] for s in statuses}
     no_status = []
@@ -77,12 +91,13 @@ def board():
     show_archived = request.args.get('show_archived') == '1'
     archived = []
     if show_archived:
-        archived = (Idea.query.filter_by(archived=True)
+        archived = (_apply_idea_filters(Idea.query.filter_by(archived=True), request.args)
                     .order_by(Idea.archived_at.desc().nullslast(), Idea.id.desc()).all())
 
-    return render_template('ideas/board.html', statuses=statuses, cells=cells,
+    return render_template('ideas/board.html', cells=cells,
                            no_status=no_status, archived=archived,
-                           show_archived=show_archived, active_count=len(active))
+                           show_archived=show_archived, active_count=len(active),
+                           args=request.args, **_choices())
 
 
 @bp.route('/new', methods=['GET', 'POST'])

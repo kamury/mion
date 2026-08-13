@@ -1,6 +1,17 @@
 {% extends 'base.html' %}
 {% from '_helpers.html' import avatar, type_badge, status_badge, priority_arrow %}
 {% block title %}Задачи — Трекер{% endblock %}
+
+{% macro set_select(field, label, items, clearable=True) %}
+<div class="col-md-4 col-lg-3 mb-2">
+  <label class="form-label mb-1">{{ label }}</label>
+  <select name="set_{{ field }}" class="form-select form-select-sm">
+    <option value="">— не менять —</option>
+    {% if clearable %}<option value="__clear__">✕ очистить</option>{% endif %}
+    {% for item in items %}<option value="{{ item.id }}">{{ item.name }}</option>{% endfor %}
+  </select>
+</div>
+{% endmacro %}
 {% block head %}
 <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
 {% endblock %}
@@ -105,6 +116,38 @@
   </div>
 </div>
 {% endif %}
+
+{# Групповая установка полей для всех отфильтрованных задач — свёрнуто по умолчанию #}
+<div class="mb-3">
+  <button class="btn btn-link btn-sm text-decoration-none p-0 filters-toggle" type="button"
+          data-bs-toggle="collapse" data-bs-target="#bulk-apply" aria-expanded="false">
+    <span class="collapse-caret">▸</span> Установить значения для всех отфильтрованных задач
+  </button>
+  <div class="collapse" id="bulk-apply">
+    <form method="post" action="{{ url_for('issues.bulk_apply') }}" class="card card-body shadow-sm mt-2"
+          onsubmit="return confirm('Применить изменения к {{ issues | length }} задач(ам) из текущего фильтра?');">
+      {# текущий фильтр -> скрытые поля, применяем к той же выборке #}
+      {% for key in ['type', 'priority', 'status_id', 'assignee_id', 'project_id', 'team_id', 'component_id'] %}
+        {% for v in args.getlist(key) %}<input type="hidden" name="{{ key }}" value="{{ v }}">{% endfor %}
+      {% endfor %}
+      {% if args.get('q') %}<input type="hidden" name="q" value="{{ args.get('q') }}">{% endif %}
+      <p class="text-muted small mb-2">Изменения применятся ко всем <strong>{{ issues | length }}</strong>
+        задачам из текущей выборки. Каждое изменение попадёт в историю задач.</p>
+      <div class="row">
+        {{ set_select('status_id', 'Статус', statuses, clearable=False) }}
+        {{ set_select('assignee_id', 'Исполнитель', users) }}
+        {{ set_select('project_id', 'Проект', projects) }}
+        {{ set_select('team_id', 'Команда', teams) }}
+        {{ set_select('customer_id', 'Заказчик', customers) }}
+        {{ set_select('component_id', 'Компонент', components) }}
+        {{ set_select('sprint_id', 'Спринт', sprints) }}
+      </div>
+      <div>
+        <button class="btn btn-danger btn-sm">Применить к отфильтрованным</button>
+      </div>
+    </form>
+  </div>
+</div>
 
 {# Модалка: сохранить текущий набор фильтров под именем #}
 <div class="modal fade" id="save-filter-modal" tabindex="-1">
