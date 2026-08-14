@@ -100,6 +100,49 @@ def board():
                            args=request.args, **_choices())
 
 
+# Поля-ссылки идеи для группового блока (приоритет обрабатывается отдельно)
+IDEA_BULK_FIELDS = ('status_id', 'assignee_id', 'project_id', 'team_id',
+                    'customer_id', 'component_id')
+
+
+@bp.post('/bulk-apply')
+@login_required
+def bulk_apply():
+    """Групповая установка полей для всех активных идей текущего фильтра."""
+    ideas = _apply_idea_filters(Idea.query.filter_by(archived=False),
+                                request.form).all()
+    changes = {}
+    for field in IDEA_BULK_FIELDS:
+        raw = request.form.get('set_' + field, '')
+        if raw == '':
+            continue
+        changes[field] = None if raw == '__clear__' else int(raw)
+    new_priority = request.form.get('set_priority', '')
+    apply_priority = new_priority in PRIORITIES
+
+    # вернёмся на тот же отфильтрованный список
+    filter_args = {k: request.form.getlist(k)
+                   for k in ('project_id', 'team_id', 'customer_id', 'component_id')
+                   if request.form.getlist(k)}
+    if request.form.get('show_archived'):
+        filter_args['show_archived'] = '1'
+    target = url_for('ideas.board', **filter_args)
+
+    if not changes and not apply_priority:
+        flash('Не выбрано ни одного поля для изменения.', 'warning')
+    elif not ideas:
+        flash('Под текущий фильтр не попала ни одна идея.', 'warning')
+    else:
+        for idea in ideas:
+            for field, value in changes.items():
+                setattr(idea, field, value)
+            if apply_priority:
+                idea.priority = new_priority
+        db.session.commit()
+        flash(f'Обновлено идей: {len(ideas)}.', 'success')
+    return redirect(target)
+
+
 @bp.route('/new', methods=['GET', 'POST'])
 @login_required
 def new():

@@ -5,6 +5,17 @@
 <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
 {% endblock %}
 
+{% macro set_select(field, label, items, clearable=True) %}
+<div class="col-md-4 col-lg-3 mb-2">
+  <label class="form-label mb-1">{{ label }}</label>
+  <select name="set_{{ field }}" class="form-select form-select-sm">
+    <option value="">— не менять —</option>
+    {% if clearable %}<option value="__clear__">✕ очистить</option>{% endif %}
+    {% for item in items %}<option value="{{ item.id }}">{{ item.name }}</option>{% endfor %}
+  </select>
+</div>
+{% endmacro %}
+
 {% macro idea_card(idea) %}
   <div class="issue-card card" data-idea-id="{{ idea.id }}">
     <div class="card-body p-2">
@@ -74,6 +85,42 @@
     </div>
   </div>
 </form>
+
+{# Групповая установка полей для всех отфильтрованных идей — свёрнуто по умолчанию #}
+<div class="mb-3">
+  <button class="btn btn-link btn-sm text-decoration-none p-0 filters-toggle" type="button"
+          data-bs-toggle="collapse" data-bs-target="#idea-bulk" aria-expanded="false">
+    <span class="collapse-caret">▸</span> Установить значения для всех отфильтрованных идей
+  </button>
+  <div class="collapse" id="idea-bulk">
+    <form method="post" action="{{ url_for('ideas.bulk_apply') }}" class="card card-body shadow-sm mt-2"
+          onsubmit="return confirm('Применить изменения ко всем идеям из текущего фильтра?');">
+      {# текущий фильтр -> скрытые поля, применяем к той же выборке #}
+      {% for key in ['project_id', 'team_id', 'customer_id', 'component_id'] %}
+        {% for v in args.getlist(key) %}<input type="hidden" name="{{ key }}" value="{{ v }}">{% endfor %}
+      {% endfor %}
+      {% if show_archived %}<input type="hidden" name="show_archived" value="1">{% endif %}
+      <p class="text-muted small mb-2">Изменения применятся ко всем активным идеям из
+        текущей выборки (архивные не затрагиваются).</p>
+      <div class="row">
+        {{ set_select('status_id', 'Статус', statuses, clearable=False) }}
+        <div class="col-md-4 col-lg-3 mb-2">
+          <label class="form-label mb-1">Приоритет</label>
+          <select name="set_priority" class="form-select form-select-sm">
+            <option value="">— не менять —</option>
+            {% for value, label in priorities.items() %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+        {{ set_select('assignee_id', 'Исполнитель', users) }}
+        {{ set_select('project_id', 'Проект', projects) }}
+        {{ set_select('team_id', 'Команда', teams) }}
+        {{ set_select('customer_id', 'Заказчик', customers) }}
+        {{ set_select('component_id', 'Компонент', components) }}
+      </div>
+      <div><button class="btn btn-danger btn-sm">Применить к отфильтрованным</button></div>
+    </form>
+  </div>
+</div>
 
 {% if not statuses %}
   <div class="alert alert-warning">Нет статусов идей. Добавьте их в
