@@ -173,12 +173,15 @@
   border-left: 1px solid #f1f2f4;
 }
 .rm-bar {
+  /* цвета заливки прогресса: --rm-done — выполнено, --rm-todo — остаток */
+  --rm-done: #45c4b0;
+  --rm-todo: #e3fdfd;
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
   height: 28px;
   min-width: 22px;
-  background: #cbf1f5;
+  background: var(--rm-todo);
   border: 1px solid #a6e3e9;
   border-radius: 6px;
   display: flex;
@@ -186,7 +189,7 @@
   padding: 0 8px;
   color: #364f6b;
 }
-.rm-bar:hover { background: #a6e3e9; }
+.rm-bar:hover { box-shadow: 0 1px 6px rgba(0, 0, 0, .22); }
 /* Активный эпик (наведение/редактирование) поднимаем над остальными
    полосами и карточками — иначе transform на .rm-bar создаёт свой
    контекст наложения, и нижние полосы перекрывают карточку. */

@@ -40,8 +40,36 @@ def _descendants(epic, children_map):
     return out
 
 
-def _build_rows(epics, children_map, statuses):
-    """Для каждого эпика — исполнители и разбивка задач по статусам/типам."""
+def _unit_weight(issue, first_status_id, done_ids):
+    """Готовность единицы: завершающий статус — 1.0, первый (To Do) — 0.0,
+    промежуточные (In Progress, Review и т.п.) — 0.5."""
+    if issue.status_id in done_ids:
+        return 1.0
+    if issue.status_id == first_status_id:
+        return 0.0
+    return 0.5
+
+
+def _epic_progress(epic, children_map, first_status_id, done_ids):
+    """Прогресс эпика в процентах (0..100) или None, если задач нет.
+
+    Единицы: фича без тасок считается за одну задачу; фича с тасками
+    представлена своими тасками (сама не учитывается). Таски/баги — по единице.
+    """
+    weights = []
+    for child in children_map.get(epic.id, []):
+        subs = children_map.get(child.id, [])
+        if subs:  # фича с задачами -> считаем её задачи
+            weights.extend(_unit_weight(s, first_status_id, done_ids) for s in subs)
+        else:     # фича без задач (или таск/баг под эпиком напрямую) -> сама единица
+            weights.append(_unit_weight(child, first_status_id, done_ids))
+    if not weights:
+        return None
+    return round(100 * sum(weights) / len(weights))
+
+
+def _build_rows(epics, children_map, statuses, first_status_id, done_ids):
+    """Для каждого эпика — исполнители, разбивка задач по статусам/типам, прогресс."""
     rows = []
     for epic in epics:
         desc = _descendants(epic, children_map)
@@ -69,6 +97,7 @@ def _build_rows(epics, children_map, statuses):
             'total': len(desc),
             'assignees': assignees,
             'breakdown': breakdown,
+            'progress': _epic_progress(epic, children_map, first_status_id, done_ids),
         })
     return rows
 
@@ -146,7 +175,9 @@ def index():
         children_map[i.parent_id].append(i)
 
     statuses = Status.query.order_by(Status.position).all()
-    rows = _build_rows(epics, children_map, statuses)
+    first_status_id = statuses[0].id if statuses else None
+    done_ids = {s.id for s in statuses if s.is_done}
+    rows = _build_rows(epics, children_map, statuses, first_status_id, done_ids)
     rows = [r for r in rows if _passes_filters(r, request.args)]
 
     # эпики с обеими датами — на таймлайн (по дате начала), остальные —

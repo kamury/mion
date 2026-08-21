@@ -14,6 +14,11 @@
       <span class="text-muted">#{{ row.epic.id }}</span> {{ row.epic.title }}</a>
   </div>
 
+  <div class="small text-muted mt-1">Прогресс:
+    <strong class="text-body">{{ row.progress if row.progress is not none else '—' }}{{ '%' if row.progress is not none }}</strong>
+    {% if row.progress is none %}<span class="text-muted">(задач нет)</span>{% endif %}
+  </div>
+
   <form method="post" action="{{ url_for('roadmap.set_dates', epic_id=row.epic.id) }}"
         class="d-flex align-items-center gap-1 my-2">
     <input type="date" name="start_date" class="form-control form-control-sm rm-date"
@@ -135,14 +140,16 @@
       </div>
       {% for row in dated_rows %}
         {% set bar = timeline.bars[row.epic.id] %}
+        {% set pct = row.progress if row.progress is not none else 0 %}
         <div class="rm-track" id="epic-{{ row.epic.id }}">
           {% for m in timeline.months %}
             <span class="rm-gridline" style="left: {{ m.left }}%"></span>
           {% endfor %}
           <div class="rm-bar{{ ' rm-bar-right' if bar.left > 55 }}"
-               style="left: {{ bar.left }}%; width: {{ bar.width }}%">
+               style="left: {{ bar.left }}%; width: {{ bar.width }}%;
+                      background: linear-gradient(to right, var(--rm-done) {{ pct }}%, var(--rm-todo) {{ pct }}%);">
             <span class="rm-bar-label"
-                  title="{{ row.epic.title }} ({{ row.epic.start_date | d }} — {{ row.epic.end_date | d }})">{{ row.epic.title }}</span>
+                  title="{{ row.epic.title }} — прогресс {{ row.progress if row.progress is not none else '—' }}{{ '%' if row.progress is not none }} ({{ row.epic.start_date | d }} — {{ row.epic.end_date | d }})">{{ row.epic.title }}</span>
             <div class="rm-card">{{ epic_info(row, dates_locked=True) }}</div>
           </div>
         </div>
