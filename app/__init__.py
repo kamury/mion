@@ -57,6 +57,11 @@ def create_app():
     def format_d(value):
         return value.strftime('%d.%m.%Y') if value else ''
 
+    @app.template_filter('description')
+    def render_description(value):
+        from .textutils import render_description as _render
+        return _render(value)
+
     @app.route('/')
     def index():
         return redirect(url_for('issues.index'))

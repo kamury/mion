@@ -1,6 +1,6 @@
 /* Форма задачи: WYSIWYG для описания + зависимый select родителя с поиском. */
 
-initEditor('#summary-editor', '#summary-input');
+initEditor('#summary-editor', '#summary-input', true);
 
 const typeSelect = document.getElementById('type-select');
 const parentSelect = document.getElementById('parent-select');

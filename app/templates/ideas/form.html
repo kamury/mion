@@ -27,6 +27,9 @@
           </div>
           <div class="mb-3">
             <label class="form-label">Описание</label>
+            <div class="form-text mt-0 mb-1">Чтобы писать в <strong>Markdown</strong>, начните описание
+              с <code>[md]</code> — редактор переключится на обычный текст, а при просмотре
+              описание отобразится как Markdown.</div>
             <textarea name="summary" id="summary-input" hidden>{{ cur.summary }}</textarea>
             <div id="summary-editor" class="bg-white"></div>
           </div>
@@ -115,6 +118,6 @@
 
 {% block scripts %}
 <script>
-  initEditor('#summary-editor', '#summary-input');
+  initEditor('#summary-editor', '#summary-input', true);
 </script>
 {% endblock %}

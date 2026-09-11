@@ -35,7 +35,7 @@
     <div class="card shadow-sm mb-3">
       <div class="card-body">
         {% if idea.summary %}
-          <div class="rendered-html">{{ idea.summary | safe }}</div>
+          <div class="rendered-html">{{ idea.summary | description }}</div>
         {% else %}
           <p class="text-muted">Описания нет.</p>
         {% endif %}

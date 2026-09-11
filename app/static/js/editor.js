@@ -1,9 +1,41 @@
-/* Общая инициализация Quill-редактора с загрузкой картинок на сервер. */
+/* Общая инициализация Quill-редактора с загрузкой картинок на сервер.
+   allowMarkdown=true (для поля «Описание»): если текст начинается с [md],
+   редактор переключается на обычный textarea, а исходник хранится как есть. */
 
-function initEditor(editorSelector, inputSelector) {
+function startsWithMd(text) {
+  return (text || '').replace(/^\s+/, '').slice(0, 4).toLowerCase() === '[md]';
+}
+
+/* Показывает вместо Quill обычный textarea с исходным Markdown-текстом. */
+function enterMarkdownMode(editorEl, input, initialText) {
+  const toolbar = editorEl.previousElementSibling;
+  if (toolbar && toolbar.classList.contains('ql-toolbar')) toolbar.style.display = 'none';
+  editorEl.style.display = 'none';
+
+  const ta = document.createElement('textarea');
+  ta.className = 'form-control font-monospace';
+  ta.rows = 12;
+  ta.setAttribute('spellcheck', 'false');
+  ta.value = initialText || '';
+  editorEl.parentNode.insertBefore(ta, editorEl.nextSibling);
+
+  input.value = ta.value;
+  ta.addEventListener('input', () => { input.value = ta.value; });
+  ta.focus();
+  ta.selectionStart = ta.selectionEnd = ta.value.length;
+}
+
+function initEditor(editorSelector, inputSelector, allowMarkdown) {
   const editorEl = document.querySelector(editorSelector);
   const input = document.querySelector(inputSelector);
   if (!editorEl || !input) return null;
+  const form = input.closest('form');
+
+  // Уже сохранённое Markdown-описание -> сразу обычный textarea, без Quill
+  if (allowMarkdown && startsWithMd(input.value)) {
+    enterMarkdownMode(editorEl, input, input.value);
+    return null;
+  }
 
   const quill = new Quill(editorEl, {
     theme: 'snow',
@@ -28,15 +60,27 @@ function initEditor(editorSelector, inputSelector) {
     quill.clipboard.dangerouslyPasteHTML(input.value);
   }
 
+  let mdMode = false;
+
   // Вставка картинок из буфера обмена: перехватываем base64 и грузим на сервер
   quill.getModule('toolbar'); // ensure init
   quill.root.addEventListener('paste', () => {
-    setTimeout(() => uploadInlineBase64Images(quill), 50);
+    setTimeout(() => { if (!mdMode) uploadInlineBase64Images(quill); }, 50);
   });
 
-  const form = input.closest('form');
+  // Начали описание с [md] -> переключаемся в Markdown-режим (обычный текст)
+  if (allowMarkdown) {
+    quill.on('text-change', () => {
+      if (!mdMode && startsWithMd(quill.getText())) {
+        mdMode = true;
+        enterMarkdownMode(editorEl, input, quill.getText().replace(/\n$/, ''));
+      }
+    });
+  }
+
   if (form) {
     form.addEventListener('submit', () => {
+      if (mdMode) return;  // input уже обновляется из textarea
       input.value = quill.getSemanticHTML ? quill.getSemanticHTML() : quill.root.innerHTML;
     });
   }
