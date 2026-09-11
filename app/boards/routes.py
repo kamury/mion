@@ -4,7 +4,6 @@ from datetime import datetime, time, timedelta
 from flask import (Blueprint, abort, flash, redirect, render_template,
                    request, url_for)
 from flask_login import current_user, login_required
-from sqlalchemy import or_
 
 from ..extensions import db
 from ..history import add_event
@@ -178,12 +177,20 @@ def view(board_id):
                       'cells': {s.id: [] for s in statuses}})
     backlog = {'sprint': None, 'cells': {s.id: [] for s in statuses}}
 
+    # Первый статус (To Do) — единственный, что попадает в беклог.
+    first_status_id = statuses[0].id if statuses else None
     lane_by_sprint = {lane['sprint'].id: lane for lane in lanes}
     for issue in issues:
-        lane = (lane_by_sprint.get(issue.sprint_id)
-                if issue.sprint_id in visible_sprint_ids else None) or backlog
-        if issue.status_id in lane['cells']:
-            lane['cells'][issue.status_id].append(issue)
+        if issue.sprint_id in visible_sprint_ids:
+            # задача в открытом спринте доски — в свой свимлейн, любой статус
+            lane = lane_by_sprint[issue.sprint_id]
+            if issue.status_id in lane['cells']:
+                lane['cells'][issue.status_id].append(issue)
+        elif issue.status_id == first_status_id:
+            # без спринта (или спринт закрыт) — в беклог, но только To Do.
+            # чтобы перевести задачу дальше, её надо взять в спринт;
+            # закрытые/завершённые задачи в беклоге не показываем.
+            backlog['cells'][issue.status_id].append(issue)
     lanes.append(backlog)
 
     # В каждой ячейке группируем задачи по родителю (фиче), группы — по приоритету
@@ -197,11 +204,19 @@ def view(board_id):
     closed_from = _parse_date(request.args.get('closed_from'))
     closed_to = _parse_date(request.args.get('closed_to'))
     closed_lanes = []
-    closed_issues = []
     if show_closed:
+        # Закрытые спринты берём не по привязке к доске, а по тому, есть ли
+        # в них задачи ЭТОЙ доски (по её запросу). Иначе на доску лезут чужие
+        # закрытые спринты без её задач, а нужные (с задачами доски, но с чужой
+        # привязкой) — не показываются.
+        issues_by_sprint = defaultdict(list)
+        for issue in issues:
+            if issue.sprint_id:
+                issues_by_sprint[issue.sprint_id].append(issue)
+        closed_sprint_ids = set(issues_by_sprint) or {0}
         cq = Sprint.query.filter(
             Sprint.is_closed.is_(True),
-            or_(Sprint.board_id.is_(None), Sprint.board_id == board.id))
+            Sprint.id.in_(closed_sprint_ids))
         if closed_from:
             cq = cq.filter(Sprint.closed_at >= datetime.combine(closed_from, time.min))
         if closed_to:
@@ -211,8 +226,8 @@ def view(board_id):
                                      Sprint.end_date.desc().nullslast(),
                                      Sprint.id.desc()).all()
         for sprint in closed_sprints:
-            sp_issues = Issue.query.filter_by(sprint_id=sprint.id).all()
-            closed_issues.extend(sp_issues)
+            # в ячейках — только задачи доски, попавшие в этот закрытый спринт
+            sp_issues = issues_by_sprint.get(sprint.id, [])
             cells = {s.id: [] for s in statuses}
             for issue in sp_issues:
                 if issue.status_id in cells:
@@ -225,9 +240,10 @@ def view(board_id):
     # Данные для связей на карточках:
     #  child_count — сколько подзадач родителя присутствует на самой доске;
     #  parents — карта id->родитель (в т.ч. если родителя нет на доске) для «хлебной крошки».
-    shown = issues + closed_issues
-    child_count = Counter(i.parent_id for i in shown if i.parent_id)
-    parent_ids = {i.parent_id for i in shown if i.parent_id}
+    # закрытые свимлейны теперь показывают только задачи доски (подмножество
+    # issues), поэтому отдельного списка closed_issues больше нет
+    child_count = Counter(i.parent_id for i in issues if i.parent_id)
+    parent_ids = {i.parent_id for i in issues if i.parent_id}
     parents = ({p.id: p for p in Issue.query.filter(Issue.id.in_(parent_ids)).all()}
                if parent_ids else {})
 
