@@ -31,11 +31,19 @@ def _html_to_text(html):
 
 
 def _render_md(source):
-    return _markdown.markdown(
+    html = _markdown.markdown(
         source,
         extensions=['extra', 'sane_lists', 'nl2br'],
         output_format='html5',
     )
+    # Чек-листы в стиле GitHub: «- [ ]» / «- [x]» -> настоящие чекбоксы
+    html = re.sub(r'<li>\s*\[\s\]\s*',
+                  '<li class="task-item"><input type="checkbox" disabled> ', html)
+    html = re.sub(r'<li>\s*\[[xX]\]\s*',
+                  '<li class="task-item"><input type="checkbox" checked disabled> ', html)
+    # убираем висящие переносы строки в конце ячеек/пунктов/абзацев
+    html = re.sub(r'(?i)<br\s*/?>\s*(</(?:li|p|td|th)>)', r'\1', html)
+    return html
 
 
 def render_description(summary):

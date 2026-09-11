@@ -35,7 +35,7 @@
 </div>
 
 <div class="row">
-  <div class="col-lg-8">
+  <div class="col-lg-9">
     <ul class="nav nav-tabs" role="tablist">
       <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-main">Задача</button></li>
       <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-history">История ({{ issue.history | length }})</button></li>
@@ -230,7 +230,7 @@
     </div>
   </div>
 
-  <div class="col-lg-4">
+  <div class="col-lg-3">
     {# Селект одного поля: меняет значение сразу при выборе #}
     {% macro field_select(field, options, current_id, empty_label=None) %}
       <form method="post" action="{{ url_for('issues.set_field', issue_id=issue.id) }}" class="flex-grow-1">

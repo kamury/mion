@@ -31,7 +31,7 @@
 {% endif %}
 
 <div class="row">
-  <div class="col-lg-8">
+  <div class="col-lg-9">
     <div class="card shadow-sm mb-3">
       <div class="card-body">
         {% if idea.summary %}
@@ -108,7 +108,7 @@
     </div>
   </div>
 
-  <div class="col-lg-4">
+  <div class="col-lg-3">
     {% macro field_select(field, options, current_id, empty_label=None) %}
       <form method="post" action="{{ url_for('ideas.set_field', idea_id=idea.id) }}">
         <input type="hidden" name="field" value="{{ field }}">
