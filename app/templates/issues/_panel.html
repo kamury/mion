@@ -14,7 +14,9 @@
   <div class="me-auto">
     <h5 class="modal-title mb-1">
       {{ type_badge(issue) }} #{{ issue.id }} — {{ issue.title }}
-      <a class="btn btn-outline-primary btn-sm ms-1 align-baseline"
+      <a class="btn btn-outline-secondary btn-sm ms-1 align-baseline"
+         href="{{ url_for('issues.view', issue_id=issue.id) }}">Открыть</a>
+      <a class="btn btn-outline-primary btn-sm align-baseline"
          href="{{ url_for('issues.edit', issue_id=issue.id) }}">Редактировать</a>
     </h5>
     {% if issue.parent %}
