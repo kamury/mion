@@ -12,9 +12,6 @@
   </select>
 </div>
 {% endmacro %}
-{% block head %}
-<link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
-{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
   <h4 class="mb-0">Задачи</h4>
@@ -185,7 +182,7 @@
     </thead>
     <tbody>
       {% for issue in issues %}
-      <tr>
+      <tr data-issue-open data-issue-id="{{ issue.id }}" style="cursor: pointer">
         <td><a href="{{ url_for('issues.view', issue_id=issue.id) }}">#{{ issue.id }}</a></td>
         <td>{{ type_badge(issue) }}</td>
         <td>{{ priority_arrow(issue) }} <span class="prio-{{ issue.priority }}">{{ issue.priority_label }}</span></td>
@@ -209,7 +206,6 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 <script>
   document.querySelectorAll('select.filter-select').forEach(function (el) {
     new TomSelect(el, {

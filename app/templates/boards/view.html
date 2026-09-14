@@ -12,8 +12,8 @@
        {% if family %}style="border-left: 4px solid hsl({{ (family * 47) % 360 }}, 55%, 62%);"{% endif %}>
     <div class="card-body p-2">
       {% if parent %}
-        <a class="card-parent d-block text-truncate text-decoration-none"
-           href="{{ url_for('issues.view', issue_id=parent.id) }}"
+        <a class="card-parent d-block text-truncate text-decoration-none js-issue-open"
+           href="{{ url_for('issues.view', issue_id=parent.id) }}" data-issue-id="{{ parent.id }}"
            title="{{ parent.type_label }} #{{ parent.id }} — {{ parent.title }}">
           ↳ {{ parent.type_label }} #{{ parent.id }} {{ parent.title }}
         </a>

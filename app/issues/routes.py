@@ -446,6 +446,19 @@ def view(issue_id):
                            **_form_choices())
 
 
+@bp.route('/<int:issue_id>/panel')
+@login_required
+def panel(issue_id):
+    """HTML-фрагмент задачи для модального окна (список задач и доски).
+    Возвращает содержимое .modal-content без обёртки base.html."""
+    issue = db.session.get(Issue, issue_id) or abort(404)
+    link_options = (Issue.query.filter(Issue.id != issue.id)
+                    .order_by(Issue.id.desc()).all())
+    return render_template('issues/_panel.html', issue=issue,
+                           links=_issue_links(issue), link_options=link_options,
+                           **_form_choices())
+
+
 def _add_blocks(source_id, target_id):
     """Добавляет ребро blocks (source блокирует target), если его ещё нет."""
     exists = IssueLink.query.filter_by(source_id=source_id, target_id=target_id,
@@ -634,6 +647,35 @@ def set_field(issue_id):
     record_update(issue, old, current_user)
     db.session.commit()
     return redirect(url_for('issues.view', issue_id=issue.id))
+
+
+@bp.post('/<int:issue_id>/fields')
+@login_required
+def set_fields(issue_id):
+    """Сохранение нескольких выпадающих полей разом (из модального окна).
+    Принимает JSON {field: value|null}. Пустая строка/None очищают поле."""
+    issue = db.session.get(Issue, issue_id) or abort(404)
+    data = request.get_json(silent=True) or {}
+    old = snapshot(issue)
+    for field, raw in data.items():
+        if field == 'priority':
+            if raw not in PRIORITIES:
+                abort(400)
+            issue.priority = raw
+            continue
+        if field not in INLINE_FIELDS:
+            abort(400)
+        model, nullable = INLINE_FIELDS[field]
+        if raw in (None, '', '__none__'):
+            if not nullable:
+                abort(400)
+            setattr(issue, field, None)
+        else:
+            obj = db.session.get(model, int(raw)) or abort(400)
+            setattr(issue, field, obj.id)
+    changed = record_update(issue, old, current_user)
+    db.session.commit()
+    return jsonify(ok=True, changed=bool(changed))
 
 
 @bp.post('/<int:issue_id>/move')

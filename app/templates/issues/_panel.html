@@ -1,0 +1,236 @@
+{% from '_helpers.html' import avatar, type_badge, status_badge %}
+{# Выпадающее поле задачи: обычный <select>, значения меняются без немедленного
+   сохранения — их собирает panel.js по кнопке «Сохранить». #}
+{% macro pfield(field, options, current_id, empty_label=None) %}
+  <select class="form-select form-select-sm" data-panel-field="{{ field }}">
+    {% if empty_label %}<option value="" {{ 'selected' if not current_id }}>{{ empty_label }}</option>{% endif %}
+    {% for o in options %}
+      <option value="{{ o.id }}" {{ 'selected' if o.id == current_id }}>{{ o.name }}</option>
+    {% endfor %}
+  </select>
+{% endmacro %}
+
+<div class="modal-header align-items-start" data-panel-root data-issue-id="{{ issue.id }}">
+  <div class="me-auto">
+    <h5 class="modal-title mb-1">
+      {{ type_badge(issue) }} #{{ issue.id }} — {{ issue.title }}
+      <a class="btn btn-outline-primary btn-sm ms-1 align-baseline"
+         href="{{ url_for('issues.edit', issue_id=issue.id) }}">Редактировать</a>
+    </h5>
+    {% if issue.parent %}
+      <div class="text-muted small">
+        Родитель: {{ type_badge(issue.parent) }}
+        <a class="js-issue-open text-decoration-none" href="{{ url_for('issues.view', issue_id=issue.parent.id) }}"
+           data-issue-id="{{ issue.parent.id }}">#{{ issue.parent.id }} {{ issue.parent.title }}</a>
+      </div>
+    {% endif %}
+  </div>
+  {# ✕ — когда нет несохранённых правок полей; иначе Сохранить/Отменить #}
+  <button type="button" class="btn-close" data-panel-close aria-label="Закрыть"></button>
+  <span class="d-none gap-2" data-panel-savegroup>
+    <button type="button" class="btn btn-primary btn-sm" data-panel-save>Сохранить</button>
+    <button type="button" class="btn btn-outline-secondary btn-sm" data-panel-cancel>Отменить</button>
+  </span>
+</div>
+
+<div class="modal-body">
+<div class="row g-3">
+  <div class="col-lg-8">
+    {# ---------- Описание ---------- #}
+    {% if issue.summary %}
+      <div class="rendered-html">{{ issue.summary | description }}</div>
+    {% else %}
+      <p class="text-muted">Описания нет.</p>
+    {% endif %}
+
+    {% if issue.children %}
+      <hr>
+      <h6>Дочерние задачи</h6>
+      <ul class="list-unstyled mb-0">
+        {% for child in issue.children | sort(attribute='id') %}
+          <li class="mb-1">
+            {{ type_badge(child) }}
+            <a class="js-issue-open text-decoration-none" href="{{ url_for('issues.view', issue_id=child.id) }}"
+               data-issue-id="{{ child.id }}">#{{ child.id }} {{ child.title }}</a>
+            {{ status_badge(child.status) }}
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
+    {# ---------- Файлы ---------- #}
+    <hr>
+    <div>
+      <h6>Файлы ({{ issue.attachments | length }})</h6>
+      {% if issue.attachments %}
+      <table class="table table-sm align-middle">
+        <tbody>
+          {% for a in issue.attachments %}
+          <tr>
+            <td><a href="{{ url_for('files.serve', name=a.stored_name) }}" target="_blank">📎 {{ a.original_name }}</a>
+              {% if a.comment_id %}<span class="text-muted small">(из комментария)</span>{% endif %}</td>
+            <td class="text-nowrap">{{ (a.size / 1024) | round(1) }} КБ</td>
+            <td class="text-nowrap">{{ a.uploaded_by.name }}</td>
+            <td class="text-muted text-nowrap">{{ a.created_at | dt }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+      <form method="post" action="{{ url_for('issues.attach', issue_id=issue.id) }}"
+            enctype="multipart/form-data" class="d-flex gap-2 mb-1" data-panel-reload>
+        <input name="files" type="file" multiple class="form-control form-control-sm" style="max-width: 350px" required>
+        <button class="btn btn-outline-primary btn-sm text-nowrap">Загрузить</button>
+      </form>
+    </div>
+
+    {# ---------- Связи ---------- #}
+    <hr>
+    <div>
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <h6 class="mb-0">Связи ({{ links | length }})</h6>
+        <button class="btn btn-outline-primary btn-sm py-0 px-2" type="button"
+                data-panel-addlink title="Добавить связь">+</button>
+      </div>
+
+      <form method="post" action="{{ url_for('issues.link_add', issue_id=issue.id) }}"
+            class="row g-2 align-items-center mb-2 d-none" data-panel-linkform data-panel-reload>
+        <div class="col-auto">
+          <select name="link_type" class="form-select form-select-sm">
+            <option value="related">related (связана с)</option>
+            <option value="is_blocked_by">is blocked by (заблокирована задачей)</option>
+            <option value="blocks">blocks (блокирует задачу)</option>
+          </select>
+        </div>
+        <div class="col-auto">
+          <select name="target_id" data-panel-linktarget class="form-select form-select-sm" required style="min-width: 240px">
+            <option value=""></option>
+            {% for o in link_options %}
+              <option value="{{ o.id }}">#{{ o.id }} {{ o.title }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-auto">
+          <button class="btn btn-primary btn-sm">Добавить</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-panel-canlink>Отмена</button>
+        </div>
+      </form>
+
+      {% if links %}
+        <ul class="list-unstyled mb-0">
+          {% for l in links %}
+            <li class="mb-1 d-flex align-items-center gap-2">
+              <span class="badge {{ 'text-bg-danger' if l.kind != 'related' else 'text-bg-secondary' }}"
+                    style="min-width: 92px">{{ l.label }}</span>
+              {{ type_badge(l.other) }}
+              <a class="text-decoration-none js-issue-open" href="{{ url_for('issues.view', issue_id=l.other.id) }}"
+                 data-issue-id="{{ l.other.id }}">
+                <span class="text-muted">#{{ l.other.id }}</span> {{ l.other.title }}</a>
+              {{ status_badge(l.other.status) }}
+              <form method="post" class="d-inline" data-panel-reload
+                    action="{{ url_for('issues.link_delete', issue_id=issue.id, link_id=l.id) }}">
+                <button class="btn-close" style="font-size:.6rem" title="Удалить связь"></button>
+              </form>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="text-muted small mb-0">Связей нет.</p>
+      {% endif %}
+    </div>
+
+    {# ---------- Комментарии ---------- #}
+    <hr>
+    <div>
+      <h6>Комментарии ({{ issue.comments | length }})</h6>
+      {% for c in issue.comments %}
+        <div class="d-flex gap-2 mb-3">
+          <div>{{ avatar(c.author, 36) }}</div>
+          <div class="flex-grow-1">
+            <div class="d-flex align-items-center gap-2">
+              <strong>{{ c.author.name }}</strong>
+              <span class="text-muted small">{{ c.created_at | dt }}{% if c.edited_at %} · изменено {{ c.edited_at | dt }}{% endif %}</span>
+            </div>
+            <div class="rendered-html">{{ c.body | safe }}</div>
+            {% if c.attachments %}
+              <div class="mt-1">
+                {% for a in c.attachments %}
+                  <a class="badge text-bg-light text-decoration-none border"
+                     href="{{ url_for('files.serve', name=a.stored_name) }}" target="_blank">
+                    📎 {{ a.original_name }}</a>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      {% else %}
+        <p class="text-muted">Комментариев пока нет.</p>
+      {% endfor %}
+
+      <form method="post" action="{{ url_for('issues.comment', issue_id=issue.id) }}"
+            enctype="multipart/form-data" data-panel-commentform data-panel-reload>
+        <textarea name="body" data-panel-commentinput hidden></textarea>
+        <div data-panel-commenteditor class="bg-white mb-2"></div>
+        <div class="d-flex gap-2 align-items-center">
+          <input name="files" type="file" multiple class="form-control form-control-sm" style="max-width: 350px">
+          <button class="btn btn-primary btn-sm text-nowrap">Отправить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {# ---------- Поля ---------- #}
+  <div class="col-lg-4">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <dl class="row mb-0 small">
+          <dt class="col-4 mt-2">Статус</dt>
+          <dd class="col-8 mb-1">{{ pfield('status_id', statuses, issue.status_id) }}</dd>
+          <dt class="col-4 mt-2">Приоритет</dt>
+          <dd class="col-8 mb-1">
+            <select class="form-select form-select-sm" data-panel-field="priority">
+              {% for value, label in priorities.items() %}
+                <option value="{{ value }}" {{ 'selected' if issue.priority == value }}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </dd>
+          <dt class="col-4">Автор</dt>
+          <dd class="col-8 mb-1"><span class="d-inline-flex align-items-center gap-1">{{ avatar(issue.reporter, 22) }} {{ issue.reporter.name }}</span></dd>
+          <dt class="col-4 mt-2">Исполнитель</dt>
+          <dd class="col-8 mb-1">
+            <div class="d-flex gap-1">
+              {{ pfield('assignee_id', users, issue.assignee_id, '—') }}
+              {% if issue.assignee_id != current_user.id %}
+                <button type="button" class="btn btn-outline-secondary btn-sm text-nowrap"
+                        data-panel-assignme="{{ current_user.id }}" title="Назначить на меня">на меня</button>
+              {% endif %}
+            </div>
+          </dd>
+          <dt class="col-4 mt-2">Проект</dt>
+          <dd class="col-8 mb-1">{{ pfield('project_id', projects, issue.project_id, '—') }}</dd>
+          <dt class="col-4 mt-2">Команда</dt>
+          <dd class="col-8 mb-1">{{ pfield('team_id', teams, issue.team_id, '—') }}</dd>
+          <dt class="col-4 mt-2">Заказчик</dt>
+          <dd class="col-8 mb-1">{{ pfield('customer_id', customers, issue.customer_id, '—') }}</dd>
+          <dt class="col-4 mt-2">Компонент</dt>
+          <dd class="col-8 mb-1">{{ pfield('component_id', components, issue.component_id, '—') }}</dd>
+          <dt class="col-4 mt-2">Спринт</dt>
+          <dd class="col-8 mb-1">
+            <select class="form-select form-select-sm" data-panel-field="sprint_id">
+              <option value="" {{ 'selected' if not issue.sprint_id }}>Backlog</option>
+              {% if issue.sprint and issue.sprint.is_closed %}
+                <option value="{{ issue.sprint.id }}" selected>{{ issue.sprint.name }} (закрыт)</option>
+              {% endif %}
+              {% for s in sprints %}
+                <option value="{{ s.id }}" {{ 'selected' if s.id == issue.sprint_id }}>{{ s.name }}</option>
+              {% endfor %}
+            </select>
+          </dd>
+          <dt class="col-4">Создана</dt><dd class="col-8">{{ issue.created_at | dt }}</dd>
+          <dt class="col-4">Обновлена</dt><dd class="col-8 mb-0">{{ issue.updated_at | dt }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
