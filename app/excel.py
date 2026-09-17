@@ -292,10 +292,22 @@ def import_rows(rows, current_user, dry_run=False):
 
     def _import_refs(row, obj):
         for kind, attr in (('project', 'project_id'), ('team', 'team_id'),
-                           ('customer', 'customer_id'), ('component', 'component_id')):
+                           ('customer', 'customer_id')):
             name = _cell(row, colmap, kind)
             if name:
                 setattr(obj, attr, get_or_create_dict(kind, str(name)[:120]).id)
+        # Компонент(ы): в ячейке допускается несколько имён через запятую.
+        # Синхронизируем M2M и «основной» component_id.
+        comp_cell = _cell(row, colmap, 'component')
+        if comp_cell:
+            seen = {}  # по id — чтобы не задублировать один компонент
+            for part in str(comp_cell).split(','):
+                if part.strip():
+                    obj_comp = get_or_create_dict('component', part.strip()[:120])
+                    seen[obj_comp.id] = obj_comp
+            comps = list(seen.values())
+            obj.components = comps
+            obj.component_id = comps[0].id if comps else None
 
     def _import_dates(row, obj):
         created_at = _parse_date(_cell(row, colmap, 'created'))
@@ -516,7 +528,7 @@ def build_export(issues):
             issue.reporter.name,
             issue.team.name if issue.team else '',
             issue.customer.name if issue.customer else '',
-            issue.component.name if issue.component else '',
+            ', '.join(c.name for c in issue.component_list),
             issue.sprint.name if issue.sprint else '',
             issue.parent.title if issue.parent else '',
             issue.created_at.strftime('%d.%m.%Y %H:%M'),

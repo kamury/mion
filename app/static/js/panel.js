@@ -57,6 +57,18 @@
       s.dataset.initial = s.value;
       s.addEventListener('change', refreshDirty);
     });
+    // Мультивыбор (компоненты): запоминаем набор, поднимаем Tom Select
+    contentEl.querySelectorAll('[data-panel-multi]').forEach(function (s) {
+      s.dataset.initial = multiValue(s);
+      s.addEventListener('change', refreshDirty);
+      if (window.TomSelect) {
+        new TomSelect(s, {
+          plugins: ['remove_button'],
+          placeholder: 'Компоненты…',
+          onChange: refreshDirty,
+        });
+      }
+    });
 
     // «на меня» — проставляет исполнителя и помечает поле изменённым
     var assignBtn = contentEl.querySelector('[data-panel-assignme]');
@@ -109,10 +121,20 @@
     });
   }
 
+  // Набор выбранных значений мультиселекта — как стабильная строка для сравнения
+  function multiValue(select) {
+    return Array.from(select.selectedOptions).map(function (o) { return o.value; })
+      .sort().join(',');
+  }
+
   function refreshDirty() {
-    var selects = contentEl.querySelectorAll('[data-panel-field]');
     var dirty = false;
-    selects.forEach(function (s) { if (s.value !== s.dataset.initial) dirty = true; });
+    contentEl.querySelectorAll('[data-panel-field]').forEach(function (s) {
+      if (s.value !== s.dataset.initial) dirty = true;
+    });
+    contentEl.querySelectorAll('[data-panel-multi]').forEach(function (s) {
+      if (multiValue(s) !== s.dataset.initial) dirty = true;
+    });
     contentEl.querySelector('[data-panel-close]').classList.toggle('d-none', dirty);
     var group = contentEl.querySelector('[data-panel-savegroup]');
     group.classList.toggle('d-none', !dirty);
@@ -123,6 +145,11 @@
     var payload = {};
     contentEl.querySelectorAll('[data-panel-field]').forEach(function (s) {
       if (s.value !== s.dataset.initial) payload[s.dataset.panelField] = s.value === '' ? null : s.value;
+    });
+    contentEl.querySelectorAll('[data-panel-multi]').forEach(function (s) {
+      if (multiValue(s) !== s.dataset.initial) {
+        payload[s.dataset.panelMulti] = Array.from(s.selectedOptions).map(function (o) { return o.value; });
+      }
     });
     if (!Object.keys(payload).length) { getModal().hide(); return; }
     try {

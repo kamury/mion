@@ -11,12 +11,13 @@ from sqlalchemy import and_, or_
 
 from ..excel import build_export, import_rows, read_rows
 from ..extensions import db
-from ..filters import multi_condition
+from ..filters import any_condition, multi_condition
 from ..files import save_upload
 from ..history import add_event, record_update, snapshot
 from ..models import (ISSUE_TYPES, PARENT_TYPE, PRIORITIES, Attachment,
                       Comment, Component, Customer, Issue, IssueLink, Project,
-                      SavedFilter, Sprint, Status, Team, User)
+                      SavedFilter, Sprint, Status, Team, User,
+                      assign_components)
 from ..sql_runner import run_ids_query
 from ..textutils import normalize_spaces
 
@@ -89,9 +90,12 @@ def _apply_form(issue):
 
     # reporter_id из формы не принимаем: автор задаётся при создании и не меняется
     for field in ('assignee_id', 'project_id', 'team_id',
-                  'customer_id', 'component_id', 'sprint_id', 'status_id'):
+                  'customer_id', 'sprint_id', 'status_id'):
         value = form.get(field) or None
         setattr(issue, field, int(value) if value else None)
+
+    # Компоненты — мультивыбор
+    assign_components(issue, form.getlist('component_ids'))
 
     if not issue.reporter_id:
         issue.reporter_id = current_user.id
@@ -134,11 +138,15 @@ def _filtered_issues(args):
     for field, column in (('status_id', Issue.status_id),
                           ('assignee_id', Issue.assignee_id),
                           ('project_id', Issue.project_id),
-                          ('team_id', Issue.team_id),
-                          ('component_id', Issue.component_id)):
+                          ('team_id', Issue.team_id)):
         cond = multi_condition(column, args.getlist(field))
         if cond is not None:
             query = query.filter(cond)
+    # компонент — по связи M2M: находим задачу по любому из её компонентов
+    comp_cond = any_condition(Issue.components, Component.id,
+                              args.getlist('component_id'))
+    if comp_cond is not None:
+        query = query.filter(comp_cond)
     if args.get('q'):
         query = query.filter(Issue.title.ilike(f"%{args['q']}%"))
     return query.order_by(Issue.id.desc()).all()
@@ -349,8 +357,7 @@ def bulk():
                 changed = 0
                 for issue in issues:
                     old = snapshot(issue)
-                    for field, value in changes.items():
-                        setattr(issue, field, value)
+                    _apply_bulk_changes(issue, changes)
                     if record_update(issue, old, current_user):
                         changed += 1
                 db.session.commit()
@@ -369,6 +376,15 @@ def _bulk_changes(form):
             continue  # не менять
         changes[field] = None if raw == '__clear__' else int(raw)
     return changes
+
+
+def _apply_bulk_changes(issue, changes):
+    """Применяет собранные изменения к задаче (компонент — через M2M-синхронизацию)."""
+    for field, value in changes.items():
+        if field == 'component_id':
+            assign_components(issue, [value] if value else [])
+        else:
+            setattr(issue, field, value)
 
 
 @bp.post('/bulk-apply')
@@ -400,8 +416,7 @@ def bulk_apply():
         changed = 0
         for issue in issues:
             old = snapshot(issue)
-            for field, value in changes.items():
-                setattr(issue, field, value)
+            _apply_bulk_changes(issue, changes)
             if record_update(issue, old, current_user):
                 changed += 1
         db.session.commit()
@@ -681,16 +696,32 @@ def set_field(issue_id):
         return redirect(url_for('issues.view', issue_id=issue.id))
     if field not in INLINE_FIELDS:
         abort(400)
-    model, nullable = INLINE_FIELDS[field]
     raw = request.form.get('value') or None
     old = snapshot(issue)
-    if raw:
-        obj = db.session.get(model, int(raw)) or abort(400)
-        setattr(issue, field, obj.id)
-    elif nullable:
-        setattr(issue, field, None)
+    if field == 'component_id':
+        # одиночный выбор — но синхронизируем и M2M-набор компонентов
+        assign_components(issue, [raw] if raw else [])
     else:
-        abort(400)
+        model, nullable = INLINE_FIELDS[field]
+        if raw:
+            obj = db.session.get(model, int(raw)) or abort(400)
+            setattr(issue, field, obj.id)
+        elif nullable:
+            setattr(issue, field, None)
+        else:
+            abort(400)
+    record_update(issue, old, current_user)
+    db.session.commit()
+    return redirect(url_for('issues.view', issue_id=issue.id))
+
+
+@bp.post('/<int:issue_id>/set-components')
+@login_required
+def set_components(issue_id):
+    """Установка нескольких компонентов задачи (форма: component_ids[])."""
+    issue = db.session.get(Issue, issue_id) or abort(404)
+    old = snapshot(issue)
+    assign_components(issue, request.form.getlist('component_ids'))
     record_update(issue, old, current_user)
     db.session.commit()
     return redirect(url_for('issues.view', issue_id=issue.id))
@@ -709,6 +740,13 @@ def set_fields(issue_id):
             if raw not in PRIORITIES:
                 abort(400)
             issue.priority = raw
+            continue
+        if field == 'component_ids':
+            # мультивыбор компонентов из модального окна
+            assign_components(issue, raw or [])
+            continue
+        if field == 'component_id':
+            assign_components(issue, [raw] if raw else [])
             continue
         if field not in INLINE_FIELDS:
             abort(400)

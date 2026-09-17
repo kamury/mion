@@ -25,6 +25,21 @@ def multi_condition(column, raw):
     return or_(*conds) if conds else None
 
 
+def any_condition(relationship, id_column, raw):
+    """Мультифильтр по связи «многие-ко-многим» (напр. компоненты задачи).
+
+    Задача проходит, если у неё есть хотя бы один из выбранных элементов;
+    «— не задано —» означает, что связей нет вовсе.
+    """
+    ids, want_none = _split(raw)
+    conds = []
+    if ids:
+        conds.append(relationship.any(id_column.in_([int(v) for v in ids])))
+    if want_none:
+        conds.append(~relationship.any())
+    return or_(*conds) if conds else None
+
+
 def scalar_ok(value, raw):
     """Проходит ли скалярное значение поля под выбранный мультифильтр."""
     ids, want_none = _split(raw)

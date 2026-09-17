@@ -77,6 +77,26 @@ class Component(db.Model):
     name = db.Column(db.String(120), unique=True, nullable=False)
 
 
+# Множественные компоненты у задач и идей (M2M). «Основной» компонент при этом
+# дублируется в колонке component_id — чтобы SQL-доски, роадмап и экспорт,
+# завязанные на одну колонку, продолжали работать без изменений.
+issue_components = db.Table(
+    'issue_components',
+    db.Column('issue_id', db.Integer,
+              db.ForeignKey('issues.id', ondelete='CASCADE'), primary_key=True),
+    db.Column('component_id', db.Integer,
+              db.ForeignKey('components.id', ondelete='CASCADE'), primary_key=True),
+)
+
+idea_components = db.Table(
+    'idea_components',
+    db.Column('idea_id', db.Integer,
+              db.ForeignKey('ideas.id', ondelete='CASCADE'), primary_key=True),
+    db.Column('component_id', db.Integer,
+              db.ForeignKey('components.id', ondelete='CASCADE'), primary_key=True),
+)
+
+
 class Status(db.Model):
     __tablename__ = 'statuses'
     id = db.Column(db.Integer, primary_key=True)
@@ -150,7 +170,9 @@ class Issue(db.Model):
     project = db.relationship('Project')
     team = db.relationship('Team')
     customer = db.relationship('Customer')
-    component = db.relationship('Component')
+    component = db.relationship('Component')  # «основной» компонент (component_id)
+    components = db.relationship('Component', secondary=issue_components,
+                                order_by='Component.name')
     status = db.relationship('Status')
 
     comments = db.relationship('Comment', backref='issue',
@@ -170,6 +192,13 @@ class Issue(db.Model):
     @property
     def priority_label(self):
         return PRIORITIES.get(self.priority, self.priority)
+
+    @property
+    def component_list(self):
+        """Полный набор компонентов (M2M); откат к одиночному component_id."""
+        if self.components:
+            return self.components
+        return [self.component] if self.component else []
 
 
 class Comment(db.Model):
@@ -327,7 +356,9 @@ class Idea(db.Model):
     project = db.relationship('Project')
     team = db.relationship('Team')
     customer = db.relationship('Customer')
-    component = db.relationship('Component')
+    component = db.relationship('Component')  # «основной» компонент (component_id)
+    components = db.relationship('Component', secondary=idea_components,
+                                order_by='Component.name')
     comments = db.relationship('IdeaComment', backref='idea',
                                cascade='all, delete-orphan',
                                order_by='IdeaComment.created_at')
@@ -338,6 +369,12 @@ class Idea(db.Model):
     @property
     def priority_label(self):
         return PRIORITIES.get(self.priority, self.priority)
+
+    @property
+    def component_list(self):
+        if self.components:
+            return self.components
+        return [self.component] if self.component else []
 
     @property
     def archive_label(self):
@@ -354,3 +391,22 @@ class IdeaComment(db.Model):
     edited_at = db.Column(db.DateTime)
 
     author = db.relationship('User')
+
+
+# ---------- Множественные компоненты ----------
+
+def assign_components(obj, ids):
+    """Задаёт компоненты задачи/идеи по списку id и синхронизирует «основной».
+
+    obj.components получает полный набор (по алфавиту), а obj.component_id —
+    первый из них (или None), чтобы старые места по одной колонке работали."""
+    clean = []
+    for value in ids or []:
+        try:
+            clean.append(int(value))
+        except (TypeError, ValueError):
+            continue
+    comps = (Component.query.filter(Component.id.in_(clean))
+             .order_by(Component.name).all()) if clean else []
+    obj.components = comps
+    obj.component_id = comps[0].id if comps else None

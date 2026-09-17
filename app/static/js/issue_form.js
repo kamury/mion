@@ -63,3 +63,12 @@ function refreshParentSelect() {
 
 typeSelect.addEventListener('change', refreshParentSelect);
 refreshParentSelect();
+
+// Мультивыбор компонентов (когда в справочнике включено «несколько значений»)
+const componentsSelect = document.getElementById('components-select');
+if (componentsSelect) {
+  new TomSelect(componentsSelect, {
+    plugins: ['remove_button'],
+    placeholder: 'Выберите компоненты…',
+  });
+}

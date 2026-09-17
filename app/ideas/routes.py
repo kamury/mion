@@ -9,17 +9,18 @@ from markupsafe import Markup, escape
 
 from ..extensions import db
 from ..files import save_upload
-from ..filters import multi_condition
+from ..filters import any_condition, multi_condition
 from ..models import (PRIORITIES, Attachment, Component, Customer, Idea,
                       IdeaComment, IdeaStatus, Issue, Project, Status, Team,
-                      User)
+                      User, assign_components)
 from ..textutils import normalize_spaces
 
 bp = Blueprint('ideas', __name__, url_prefix='/ideas')
 
 # Поля идеи с одним значением-ссылкой (для формы, вью и переноса в эпик).
-# Спринт у идей нет — исключён осознанно.
-IDEA_FIELDS = ('assignee_id', 'project_id', 'team_id', 'customer_id', 'component_id')
+# Спринт у идей нет — исключён осознанно. Компонент обрабатывается отдельно
+# (может быть мультивыбором).
+IDEA_FIELDS = ('assignee_id', 'project_id', 'team_id', 'customer_id')
 
 
 def _first_status():
@@ -45,6 +46,8 @@ def _apply_fields(idea):
     for field in IDEA_FIELDS:
         value = request.form.get(field) or None
         setattr(idea, field, int(value) if value else None)
+    # компоненты — мультивыбор
+    assign_components(idea, request.form.getlist('component_ids'))
 
 
 def _save_idea_files(idea, files):
@@ -66,11 +69,14 @@ def _apply_idea_filters(query, args):
     + «не задано»), как на вкладке «Задачи»."""
     for field, column in (('project_id', Idea.project_id),
                           ('team_id', Idea.team_id),
-                          ('customer_id', Idea.customer_id),
-                          ('component_id', Idea.component_id)):
+                          ('customer_id', Idea.customer_id)):
         cond = multi_condition(column, args.getlist(field))
         if cond is not None:
             query = query.filter(cond)
+    comp_cond = any_condition(Idea.components, Component.id,
+                              args.getlist('component_id'))
+    if comp_cond is not None:
+        query = query.filter(comp_cond)
     return query
 
 
@@ -135,7 +141,10 @@ def bulk_apply():
     else:
         for idea in ideas:
             for field, value in changes.items():
-                setattr(idea, field, value)
+                if field == 'component_id':
+                    assign_components(idea, [value] if value else [])
+                else:
+                    setattr(idea, field, value)
             if apply_priority:
                 idea.priority = new_priority
         db.session.commit()
@@ -219,6 +228,9 @@ def set_field(idea_id):
     elif field == 'status_id':
         value = request.form.get('value') or None
         idea.status_id = int(value) if value else None
+    elif field == 'component_id':
+        raw = request.form.get('value') or None
+        assign_components(idea, [raw] if raw else [])
     elif field in INLINE_FIELDS:
         raw = request.form.get('value') or None
         if raw:
@@ -228,6 +240,16 @@ def set_field(idea_id):
             setattr(idea, field, None)
     else:
         abort(400)
+    db.session.commit()
+    return redirect(url_for('ideas.view', idea_id=idea.id))
+
+
+@bp.post('/<int:idea_id>/set-components')
+@login_required
+def set_components(idea_id):
+    """Установка нескольких компонентов идеи (форма: component_ids[])."""
+    idea = db.session.get(Idea, idea_id) or abort(404)
+    assign_components(idea, request.form.getlist('component_ids'))
     db.session.commit()
     return redirect(url_for('ideas.view', idea_id=idea.id))
 
@@ -297,6 +319,8 @@ def to_dev(idea_id):
                  source_idea_id=idea.id)
     db.session.add(epic)
     db.session.flush()
+    # переносим весь набор компонентов идеи на эпик
+    assign_components(epic, [c.id for c in idea.component_list])
     # Переносим вложения идеи на эпик
     for att in idea.attachments:
         db.session.add(Attachment(

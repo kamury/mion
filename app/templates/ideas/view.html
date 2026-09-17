@@ -146,8 +146,22 @@
           <dd class="col-8 mb-1">{{ field_select('team_id', teams, idea.team_id, '—') }}</dd>
           <dt class="col-4 mt-2">Заказчик</dt>
           <dd class="col-8 mb-1">{{ field_select('customer_id', customers, idea.customer_id, '—') }}</dd>
-          <dt class="col-4 mt-2">Компонент</dt>
-          <dd class="col-8 mb-1">{{ field_select('component_id', components, idea.component_id, '—') }}</dd>
+          <dt class="col-4 mt-2">Компоненты</dt>
+          <dd class="col-8 mb-1">
+            {% set sel = idea.component_list | map(attribute='id') | list %}
+            <form method="post" action="{{ url_for('ideas.set_components', idea_id=idea.id) }}"
+                  class="d-flex gap-1 align-items-start">
+              <select name="component_ids" class="form-select form-select-sm view-components" multiple
+                      {{ 'disabled' if idea.archived }}>
+                {% for c in components %}
+                  <option value="{{ c.id }}" {{ 'selected' if c.id in sel }}>{{ c.name }}</option>
+                {% endfor %}
+              </select>
+              {% if not idea.archived %}
+                <button class="btn btn-outline-secondary btn-sm" title="Сохранить">💾</button>
+              {% endif %}
+            </form>
+          </dd>
           <dt class="col-4 mt-2">Обновлена</dt><dd class="col-8 mb-0 mt-2">{{ idea.updated_at | dt }}</dd>
         </dl>
 
@@ -176,6 +190,10 @@
   {% if not idea.archived %}
   initEditor('#comment-editor', '#comment-input');
   {% endif %}
+
+  document.querySelectorAll('select.view-components').forEach(function (el) {
+    new TomSelect(el, { plugins: ['remove_button'], placeholder: 'Компоненты…' });
+  });
 
   var commentEditors = {};
   document.querySelectorAll('.comment-edit-btn').forEach(function (btn) {

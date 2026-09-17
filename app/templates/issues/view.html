@@ -278,8 +278,19 @@
           <dd class="col-8 mb-1">{{ field_select('team_id', teams, issue.team_id, '—') }}</dd>
           <dt class="col-4 mt-2">Заказчик</dt>
           <dd class="col-8 mb-1">{{ field_select('customer_id', customers, issue.customer_id, '—') }}</dd>
-          <dt class="col-4 mt-2">Компонент</dt>
-          <dd class="col-8 mb-1">{{ field_select('component_id', components, issue.component_id, '—') }}</dd>
+          <dt class="col-4 mt-2">Компоненты</dt>
+          <dd class="col-8 mb-1">
+            {% set sel = issue.component_list | map(attribute='id') | list %}
+            <form method="post" action="{{ url_for('issues.set_components', issue_id=issue.id) }}"
+                  class="d-flex gap-1 align-items-start">
+              <select name="component_ids" class="form-select form-select-sm view-components" multiple>
+                {% for c in components %}
+                  <option value="{{ c.id }}" {{ 'selected' if c.id in sel }}>{{ c.name }}</option>
+                {% endfor %}
+              </select>
+              <button class="btn btn-outline-secondary btn-sm" title="Сохранить">💾</button>
+            </form>
+          </dd>
           <dt class="col-4 mt-2">Спринт</dt>
           <dd class="col-8 mb-1">
             <form method="post" action="{{ url_for('issues.set_field', issue_id=issue.id) }}">
@@ -307,6 +318,11 @@
 {% block scripts %}
 <script>
   initEditor('#comment-editor', '#comment-input');
+
+  // Мультивыбор компонентов в сайдбаре (если включено в справочнике)
+  document.querySelectorAll('select.view-components').forEach(function (el) {
+    new TomSelect(el, { plugins: ['remove_button'], placeholder: 'Компоненты…' });
+  });
 
   // Блок связей: показать форму по «+», поиск задачи через Tom Select.
   (function () {

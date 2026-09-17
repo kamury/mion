@@ -130,11 +130,12 @@
             </select>
           </div>
           <div class="mb-3">
-            <label class="form-label">Компонент</label>
-            <select name="component_id" class="form-select">
-              <option value="">—</option>
+            <label class="form-label">Компоненты</label>
+            {% set selected_components = (issue.component_list | map(attribute='id') | list)
+                 if issue else ([cur.component_id|int] if cur.component_id else []) %}
+            <select name="component_ids" id="components-select" class="form-select" multiple>
               {% for c in components %}
-                <option value="{{ c.id }}" {{ 'selected' if cur.component_id|string == c.id|string }}>{{ c.name }}</option>
+                <option value="{{ c.id }}" {{ 'selected' if c.id in selected_components }}>{{ c.name }}</option>
               {% endfor %}
             </select>
           </div>

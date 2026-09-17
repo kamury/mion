@@ -145,9 +145,12 @@ def _passes_filters(row, args):
 
     if not scalar_ok(epic.priority, args.getlist('priority')):
         return False
-    for field in ('project_id', 'team_id', 'component_id'):
+    for field in ('project_id', 'team_id'):
         if not scalar_ok(getattr(epic, field), args.getlist(field)):
             return False
+    # компонент — по всему набору (эпик может иметь несколько)
+    if not set_ok({c.id for c in epic.component_list}, args.getlist('component_id')):
+        return False
 
     # исполнитель и статус — по задачам эпика (то, что показано в строке);
     # «не задано» = нет исполнителей / нет задач

@@ -214,8 +214,15 @@
           <dd class="col-8 mb-1">{{ pfield('team_id', teams, issue.team_id, '—') }}</dd>
           <dt class="col-4 mt-2">Заказчик</dt>
           <dd class="col-8 mb-1">{{ pfield('customer_id', customers, issue.customer_id, '—') }}</dd>
-          <dt class="col-4 mt-2">Компонент</dt>
-          <dd class="col-8 mb-1">{{ pfield('component_id', components, issue.component_id, '—') }}</dd>
+          <dt class="col-4 mt-2">Компоненты</dt>
+          <dd class="col-8 mb-1">
+            {% set sel = issue.component_list | map(attribute='id') | list %}
+            <select class="form-select form-select-sm" data-panel-multi="component_ids" multiple>
+              {% for c in components %}
+                <option value="{{ c.id }}" {{ 'selected' if c.id in sel }}>{{ c.name }}</option>
+              {% endfor %}
+            </select>
+          </dd>
           <dt class="col-4 mt-2">Спринт</dt>
           <dd class="col-8 mb-1">
             <select class="form-select form-select-sm" data-panel-field="sprint_id">
