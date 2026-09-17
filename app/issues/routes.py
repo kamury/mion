@@ -33,6 +33,10 @@ def _form_choices():
         sprints=Sprint.query.filter_by(is_closed=False)
                             .order_by(Sprint.start_date).all(),
         statuses=Status.query.order_by(Status.position).all(),
+        # кандидаты в родители для групповой правки: эпики (для фич) и фичи
+        # (для задач/багов). Конкретный тип проверяется при применении.
+        parents=Issue.query.filter(Issue.type.in_(('epic', 'feature')))
+                           .order_by(Issue.title).all(),
         issue_types=ISSUE_TYPES,
         priorities=PRIORITIES,
     )
@@ -275,6 +279,37 @@ BULK_FIELDS = ('status_id', 'assignee_id', 'reporter_id', 'project_id',
 # Поля, которые нельзя очистить (NOT NULL)
 BULK_REQUIRED = {'status_id', 'reporter_id'}
 
+# «Родителя не менять» — отличаем от «очистить» (None)
+_SKIP_PARENT = object()
+
+
+def _resolve_parent(issues, raw):
+    """Новое значение parent_id для групповой правки по set_parent_id.
+
+    Возвращает _SKIP_PARENT (не трогать), None (очистить) или id родителя.
+    Привязать родителя можно, только когда все задачи выборки одного типа —
+    иначе (и при неподходящем родителе) бросает ValueError с текстом ошибки."""
+    if raw == '':
+        return _SKIP_PARENT
+    if raw == '__clear__':
+        return None
+    types = {i.type for i in issues}
+    if len(types) != 1:
+        raise ValueError('Родителя можно назначить, только когда все задачи '
+                         'в выборке одного типа.')
+    issue_type = next(iter(types))
+    expected = PARENT_TYPE.get(issue_type)
+    if expected is None:
+        raise ValueError(f'У задач типа «{ISSUE_TYPES.get(issue_type, issue_type)}» '
+                         'не может быть родителя.')
+    parent = db.session.get(Issue, int(raw))
+    if not parent or parent.type != expected:
+        raise ValueError('Родитель не подходит по типу: фиче нужен эпик, '
+                         'задаче или багу — фича.')
+    if parent.id in {i.id for i in issues}:
+        raise ValueError('Задача не может быть родителем сама себе.')
+    return parent.id
+
 
 @bp.route('/bulk', methods=['GET', 'POST'])
 @login_required
@@ -294,16 +329,19 @@ def bulk():
             error = f'Ошибка в запросе: {e}'
 
         if action == 'apply' and not error:
-            changes = {}
-            for field in BULK_FIELDS:
-                raw = request.form.get('set_' + field, '')
-                if raw == '':
-                    continue  # не менять
-                if raw == '__clear__':
-                    changes[field] = None
-                else:
-                    changes[field] = int(raw)
-            if not changes:
+            changes = _bulk_changes(request.form)
+            parent_error = False
+            if issues:
+                try:
+                    parent_val = _resolve_parent(issues, request.form.get('set_parent_id', ''))
+                    if parent_val is not _SKIP_PARENT:
+                        changes['parent_id'] = parent_val
+                except ValueError as e:
+                    flash(str(e), 'danger')
+                    parent_error = True
+            if parent_error:
+                pass  # ошибка с родителем — ничего не применяем
+            elif not changes:
                 flash('Не выбрано ни одного поля для изменения.', 'warning')
             elif not issues:
                 flash('Запрос не вернул ни одной задачи.', 'warning')
@@ -344,6 +382,15 @@ def bulk_apply():
     filter_args = {k: request.form.getlist(k)
                    for k in FILTER_FIELDS if request.form.getlist(k)}
     target = url_for('issues.index', **filter_args)
+
+    if issues:
+        try:
+            parent_val = _resolve_parent(issues, request.form.get('set_parent_id', ''))
+            if parent_val is not _SKIP_PARENT:
+                changes['parent_id'] = parent_val
+        except ValueError as e:
+            flash(str(e), 'danger')
+            return redirect(target)
 
     if not changes:
         flash('Не выбрано ни одного поля для изменения.', 'warning')

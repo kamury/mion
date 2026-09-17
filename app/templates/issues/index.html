@@ -138,6 +138,24 @@
         {{ set_select('customer_id', 'Заказчик', customers) }}
         {{ set_select('component_id', 'Компонент', components) }}
         {{ set_select('sprint_id', 'Спринт', sprints) }}
+        <div class="col-md-4 col-lg-3 mb-2">
+          <label class="form-label mb-1">Родитель</label>
+          <select name="set_parent_id" class="form-select form-select-sm">
+            <option value="">— не менять —</option>
+            <option value="__clear__">✕ очистить</option>
+            <optgroup label="Эпики">
+              {% for p in parents if p.type == 'epic' %}
+                <option value="{{ p.id }}">#{{ p.id }} {{ p.title }}</option>
+              {% endfor %}
+            </optgroup>
+            <optgroup label="Фичи">
+              {% for p in parents if p.type == 'feature' %}
+                <option value="{{ p.id }}">#{{ p.id }} {{ p.title }}</option>
+              {% endfor %}
+            </optgroup>
+          </select>
+          <div class="form-text">Только если все задачи одного типа.</div>
+        </div>
       </div>
       <div>
         <button class="btn btn-danger btn-sm">Применить к отфильтрованным</button>

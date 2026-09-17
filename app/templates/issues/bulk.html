@@ -42,6 +42,24 @@
         {{ set_select('customer_id', 'Заказчик', customers) }}
         {{ set_select('component_id', 'Компонент', components) }}
         {{ set_select('sprint_id', 'Спринт', sprints) }}
+        <div class="col-md-4 col-lg-3 mb-3">
+          <label class="form-label">Родитель</label>
+          <select name="set_parent_id" class="form-select form-select-sm">
+            <option value="">— не менять —</option>
+            <option value="__clear__">✕ очистить</option>
+            <optgroup label="Эпики">
+              {% for p in parents if p.type == 'epic' %}
+                <option value="{{ p.id }}">#{{ p.id }} {{ p.title }}</option>
+              {% endfor %}
+            </optgroup>
+            <optgroup label="Фичи">
+              {% for p in parents if p.type == 'feature' %}
+                <option value="{{ p.id }}">#{{ p.id }} {{ p.title }}</option>
+              {% endfor %}
+            </optgroup>
+          </select>
+          <div class="form-text">Только если все задачи одного типа: фичам — эпик, задачам и багам — фичу.</div>
+        </div>
       </div>
       <button class="btn btn-danger" name="action" value="apply"
               onclick="return confirm('Применить изменения ко всем задачам из выборки?');">
