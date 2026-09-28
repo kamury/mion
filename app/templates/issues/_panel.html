@@ -187,7 +187,16 @@
       <div class="card-body">
         <dl class="row mb-0 small">
           <dt class="col-4 mt-2">Статус</dt>
-          <dd class="col-8 mb-1">{{ pfield('status_id', statuses, issue.status_id) }}</dd>
+          <dd class="col-8 mb-1">
+            {% if issue.status_locked %}
+              <select class="form-select form-select-sm" disabled>
+                <option>{{ issue.status.name }}</option>
+              </select>
+              <div class="form-text small">В беклоге статус не меняется — добавьте задачу в спринт.</div>
+            {% else %}
+              {{ pfield('status_id', statuses, issue.status_id) }}
+            {% endif %}
+          </dd>
           <dt class="col-4 mt-2">Приоритет</dt>
           <dd class="col-8 mb-1">
             <select class="form-select form-select-sm" data-panel-field="priority">

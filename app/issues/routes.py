@@ -685,6 +685,10 @@ def set_field(issue_id):
     """Смена одного поля со страницы просмотра задачи."""
     issue = db.session.get(Issue, issue_id) or abort(404)
     field = request.form.get('field', '')
+    # В беклоге статус заперт — сначала нужен спринт
+    if field == 'status_id' and issue.status_locked:
+        flash('Чтобы сменить статус задачи, добавьте её в спринт.', 'danger')
+        return redirect(url_for('issues.view', issue_id=issue.id))
     if field == 'priority':
         value = request.form.get('value', '')
         if value not in PRIORITIES:
@@ -758,6 +762,13 @@ def set_fields(issue_id):
         else:
             obj = db.session.get(model, int(raw)) or abort(400)
             setattr(issue, field, obj.id)
+    # Беклог держит только первый статус — без спринта статус не сменить
+    first_status = Status.query.order_by(Status.position).first()
+    if (issue.sprint_id is None and issue.type != 'epic'
+            and first_status and issue.status_id != first_status.id):
+        db.session.rollback()
+        return jsonify(ok=False,
+                       error='Чтобы сменить статус задачи, добавьте её в спринт.'), 400
     changed = record_update(issue, old, current_user)
     db.session.commit()
     return jsonify(ok=True, changed=bool(changed))
@@ -769,19 +780,35 @@ def move(issue_id):
     """Смена статуса и/или спринта — с доски (JSON) или со страницы задачи (форма)."""
     issue = db.session.get(Issue, issue_id) or abort(404)
     data = request.get_json(silent=True) or request.form
-    old = snapshot(issue)
 
+    # Цель перемещения (статус/спринт) — с откатом к текущим значениям
+    new_status_id = issue.status_id
     if 'status_id' in data and data.get('status_id'):
         status = db.session.get(Status, int(data['status_id'])) or abort(400)
-        issue.status_id = status.id
+        new_status_id = status.id
+    new_sprint_id = issue.sprint_id
     if 'sprint_id' in data:
-        sprint_id = data.get('sprint_id') or None
-        if sprint_id:
-            sprint = db.session.get(Sprint, int(sprint_id)) or abort(400)
-            issue.sprint_id = sprint.id
+        raw_sprint = data.get('sprint_id') or None
+        if raw_sprint:
+            sprint = db.session.get(Sprint, int(raw_sprint)) or abort(400)
+            new_sprint_id = sprint.id
         else:
-            issue.sprint_id = None
+            new_sprint_id = None
 
+    # Беклог держит только первый статус (To Do). Менять статус задачи без
+    # спринта нельзя — сначала возьмите её в спринт.
+    first_status = Status.query.order_by(Status.position).first()
+    if (new_sprint_id is None and issue.type != 'epic'
+            and first_status and new_status_id != first_status.id):
+        message = 'Чтобы сменить статус задачи, добавьте её в спринт.'
+        if request.is_json:
+            return jsonify(ok=False, error=message), 400
+        flash(message, 'danger')
+        return redirect(request.referrer or url_for('issues.view', issue_id=issue.id))
+
+    old = snapshot(issue)
+    issue.status_id = new_status_id
+    issue.sprint_id = new_sprint_id
     record_update(issue, old, current_user)
     db.session.commit()
 

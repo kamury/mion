@@ -200,6 +200,12 @@ class Issue(db.Model):
             return self.components
         return [self.component] if self.component else []
 
+    @property
+    def status_locked(self):
+        """Задача в беклоге (без спринта) заперта по статусу: сменить его можно,
+        только взяв задачу в спринт. Эпики не в счёт — они не идут в спринты."""
+        return self.sprint_id is None and self.type != 'epic'
+
 
 class Comment(db.Model):
     __tablename__ = 'comments'

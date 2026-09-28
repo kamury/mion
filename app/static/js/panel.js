@@ -158,9 +158,12 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
+      if (!res.ok) {
+        var data = await res.json().catch(function () { return {}; });
+        throw new Error(data.error || ('HTTP ' + res.status));
+      }
     } catch (err) {
-      alert('Не удалось сохранить изменения: ' + err.message);
+      alert(err.message);
       return;
     }
     pageDirty = true;

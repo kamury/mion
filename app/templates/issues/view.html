@@ -244,7 +244,16 @@
       <div class="card-body">
         <dl class="row mb-0 small">
           <dt class="col-4 mt-2">Статус</dt>
-          <dd class="col-8 mb-1">{{ field_select('status_id', statuses, issue.status_id) }}</dd>
+          <dd class="col-8 mb-1">
+            {% if issue.status_locked %}
+              <select class="form-select form-select-sm" disabled>
+                <option>{{ issue.status.name }}</option>
+              </select>
+              <div class="form-text">Задача в беклоге. Чтобы сменить статус, добавьте её в спринт.</div>
+            {% else %}
+              {{ field_select('status_id', statuses, issue.status_id) }}
+            {% endif %}
+          </dd>
           <dt class="col-4 mt-2">Приоритет</dt>
           <dd class="col-8 mb-1">
             <form method="post" action="{{ url_for('issues.set_field', issue_id=issue.id) }}">

@@ -101,7 +101,8 @@
 {% endif %}
 
 <div class="board-scroll">
-  <div class="board-grid" style="--cols: {{ statuses | length }};">
+  <div class="board-grid" style="--cols: {{ statuses | length }};"
+       data-first-status="{{ statuses[0].id if statuses else '' }}">
     <div class="board-header-row">
       {% for s in statuses %}
         <div class="board-col-header {{ 'board-col-done' if s.is_done }}">{{ s.name }}</div>
