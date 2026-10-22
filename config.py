@@ -26,3 +26,16 @@ class Config:
 
     # Время жизни ссылки на сброс пароля, секунды
     PASSWORD_RESET_MAX_AGE = 3600
+
+    # ---------- Почта (уведомления) ----------
+    # Если MAIL_SERVER не задан — уведомления просто не отправляются.
+    MAIL_SERVER = os.environ.get('MAIL_SERVER')
+    MAIL_PORT = int(os.environ.get('MAIL_PORT', 25))
+    MAIL_USE_TLS = os.environ.get('MAIL_USE_TLS', '').lower() in ('1', 'true', 'yes')
+    MAIL_USERNAME = os.environ.get('MAIL_USERNAME')
+    MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
+    # Отправитель: по умолчанию совпадает с логином
+    MAIL_FROM = os.environ.get('MAIL_FROM') or os.environ.get('MAIL_USERNAME')
+    MAIL_FROM_NAME = os.environ.get('MAIL_FROM_NAME', 'Трекер Мион')
+    # Базовый адрес приложения для ссылок в письмах, напр. http://tracker.local
+    APP_BASE_URL = os.environ.get('APP_BASE_URL', '')

@@ -14,6 +14,7 @@ from ..extensions import db
 from ..filters import any_condition, multi_condition
 from ..files import save_upload
 from ..history import add_event, record_update, snapshot
+from ..notifications import notify_assignment, notify_comment
 from ..models import (ISSUE_TYPES, PARENT_TYPE, PRIORITIES, Attachment,
                       Comment, Component, Customer, Issue, IssueLink, Project,
                       SavedFilter, Sprint, Status, Team, User,
@@ -442,6 +443,7 @@ def new():
         add_event(issue, current_user, 'created')
         _save_attachments(issue, request.files.getlist('files'))
         db.session.commit()
+        notify_assignment(issue, None, current_user)
         flash(f'Задача #{issue.id} создана.', 'success')
         return redirect(url_for('issues.view', issue_id=issue.id))
     # «Добавить связанную задачу» со страницы эпика/фичи: предзаполняем
@@ -594,6 +596,7 @@ def edit(issue_id):
                                    **_form_choices())
         record_update(issue, old, current_user)
         db.session.commit()
+        notify_assignment(issue, old['assignee_id'], current_user)
         flash('Задача обновлена.', 'success')
         return redirect(url_for('issues.view', issue_id=issue.id))
     return render_template('issues/form.html', issue=issue, form_data=None,
@@ -630,6 +633,7 @@ def comment(issue_id):
     _save_attachments(issue, files, comment=new_comment)
     add_event(issue, current_user, 'commented')
     db.session.commit()
+    notify_comment(issue, new_comment, current_user)
     return redirect(url_for('issues.view', issue_id=issue.id) + '#comments')
 
 
@@ -716,6 +720,7 @@ def set_field(issue_id):
             abort(400)
     record_update(issue, old, current_user)
     db.session.commit()
+    notify_assignment(issue, old['assignee_id'], current_user)
     return redirect(url_for('issues.view', issue_id=issue.id))
 
 
@@ -771,6 +776,7 @@ def set_fields(issue_id):
                        error='Чтобы сменить статус задачи, добавьте её в спринт.'), 400
     changed = record_update(issue, old, current_user)
     db.session.commit()
+    notify_assignment(issue, old['assignee_id'], current_user)
     return jsonify(ok=True, changed=bool(changed))
 
 
