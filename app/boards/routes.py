@@ -161,12 +161,13 @@ def view(board_id):
                         .all())
 
     # Видимость спринта на доске:
-    # - спринт этой доски (или без привязки) виден всегда, даже пустой;
-    # - чужой спринт виден, только если на доске есть его задачи.
+    # - спринт, созданный на этой доске, виден всегда, даже пустой;
+    # - любой другой спринт (в т.ч. без привязки) виден, только если на доске
+    #   есть его задачи.
     sprints_with_issues_here = {i.sprint_id for i in issues if i.sprint_id}
     board_sprints = [
         s for s in all_open_sprints
-        if s.board_id in (None, board.id) or s.id in sprints_with_issues_here
+        if s.board_id == board.id or s.id in sprints_with_issues_here
     ]
     visible_sprint_ids = {s.id for s in board_sprints}
 
