@@ -1,5 +1,6 @@
+import re
 from collections import Counter, defaultdict
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 
 from flask import (Blueprint, abort, flash, redirect, render_template,
                    request, url_for)
@@ -16,6 +17,13 @@ bp = Blueprint('boards', __name__, url_prefix='/boards')
 
 def _parse_date(value):
     return datetime.strptime(value, '%Y-%m-%d').date() if value else None
+
+
+def _natural_key(name):
+    """Ключ «натуральной» сортировки: числа в названии сравниваются как числа,
+    а не как текст, чтобы «Спринт 9» шёл раньше «Спринт 18»."""
+    return [int(chunk) if chunk.isdigit() else chunk.lower()
+            for chunk in re.split(r'(\d+)', name or '')]
 
 
 def _cluster_by_parent(issues):
@@ -156,9 +164,14 @@ def view(board_id):
               if issue_ids else [])
 
     statuses = Status.query.order_by(Status.position).all()
-    all_open_sprints = (Sprint.query.filter_by(is_closed=False)
-                        .order_by(Sprint.start_date.asc().nullslast(), Sprint.id)
-                        .all())
+    # Порядок спринтов: сначала с датой начала (по дате), затем без даты —
+    # по названию с «натуральной» сортировкой чисел (Спринт 9 раньше Спринта 18).
+    all_open_sprints = Sprint.query.filter_by(is_closed=False).all()
+    all_open_sprints.sort(key=lambda s: (
+        s.start_date is None,
+        s.start_date or date.min,
+        _natural_key(s.name),
+    ))
 
     # Видимость спринта на доске:
     # - спринт, созданный на этой доске, виден всегда, даже пустой;
